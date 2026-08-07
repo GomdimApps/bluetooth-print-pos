@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PrinterWrapper — demo</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; line-height: 1.4; }
+  h1 { font-size: 1.25rem; }
+  fieldset { margin-bottom: 1rem; }
+  label { display: block; margin: 0.5rem 0 0.2rem; font-weight: 600; }
+  textarea, select, input[type=file] { width: 100%; box-sizing: border-box; }
+  textarea { height: 4.5rem; }
+  button { padding: 0.5rem 1rem; margin: 0.25rem 0.25rem 0.25rem 0; cursor: pointer; }
+  button:disabled { cursor: not-allowed; opacity: 0.5; }
+  #banner { padding: 0.6rem 0.8rem; border-radius: 6px; margin-bottom: 1rem; font-weight: 600; }
+  #banner.ok { background: #d3f5d3; color: #14532d; }
+  #banner.fail { background: #fbd5d5; color: #7f1d1d; }
+  #status { font-weight: 600; }
+  #log { background: #111; color: #ddd; padding: 0.75rem; height: 12rem; overflow-y: auto; font-size: 0.8rem; white-space: pre-wrap; border-radius: 6px; }
+  .note { font-size: 0.85rem; opacity: 0.75; }
+</style>
+</head>
+<body>
+
+<h1>PrinterWrapper — demo / test</h1>
+<p class="note">
+  This page must be served via <code>http://localhost</code> or <code>https://</code> — Web Bluetooth does not
+  work over <code>file://</code>. From the repository root: <code>npx serve .</code> or
+  <code>python3 -m http.server 8000</code>, then open <code>http://localhost:8000/demo/</code>.
+</p>
+
+<div id="banner">Checking support...</div>
+
+<fieldset>
+  <legend>Connection</legend>
+  <button id="connectBtn">Connect</button>
+  <button id="disconnectBtn" disabled>Disconnect</button>
+  <button id="testPrintBtn" disabled>Test Print</button>
+  <div>Status: <span id="status">idle</span></div>
+</fieldset>
+
+<fieldset>
+  <legend>Receipt</legend>
+  <label for="textInput">Text (one line per row in the field)</label>
+  <textarea id="textInput" placeholder="Line 1&#10;Line 2"></textarea>
+
+  <label for="alignSelect">Text alignment</label>
+  <select id="alignSelect">
+    <option value="left" selected>Left</option>
+    <option value="center">Center</option>
+    <option value="right">Right</option>
+  </select>
+
+  <label><input type="checkbox" id="boldCheck" /> Bold</label>
+
+  <label for="imageInput">Image (optional — becomes base64/File automatically)</label>
+  <input type="file" id="imageInput" accept="image/*" />
+
+  <button id="printBtn" disabled>Print</button>
+</fieldset>
+
+<fieldset>
+  <legend>Log</legend>
+  <div id="log"></div>
+</fieldset>
+
+<script src="../build/printer-wrapper.js"></script>
+<script>
+  const banner = document.getElementById('banner')
+  const statusEl = document.getElementById('status')
+  const logEl = document.getElementById('log')
+  const connectBtn = document.getElementById('connectBtn')
+  const disconnectBtn = document.getElementById('disconnectBtn')
+  const printBtn = document.getElementById('printBtn')
+  const testPrintBtn = document.getElementById('testPrintBtn')
+  const textInput = document.getElementById('textInput')
+  const alignSelect = document.getElementById('alignSelect')
+  const boldCheck = document.getElementById('boldCheck')
+  const imageInput = document.getElementById('imageInput')
+
+  function log(message) {
+    const time = new Date().toLocaleTimeString()
+    logEl.textContent += `[${time}] ${message}\n`
+    logEl.scrollTop = logEl.scrollHeight
+  }
+
+  const supported = PrinterWrapper.isSupported()
+  banner.textContent = supported
+    ? 'Web Bluetooth supported.'
+    : 'Web Bluetooth NOT supported in this browser — use Chrome or Edge (desktop or Android).'
+  banner.className = supported ? 'ok' : 'fail'
+  connectBtn.disabled = !supported
+
+  const printer = new PrinterWrapper()
+
+  printer.onStatusChange((event) => {
+    statusEl.textContent = event.status
+    log(`status: ${event.status}${event.info ? ` (${event.info.name})` : ''}`)
+    if (event.error) log(`error [${event.error.code}]: ${event.error.message}`)
+
+    const connected = printer.isConnected()
+    disconnectBtn.disabled = !connected
+    printBtn.disabled = !connected
+    testPrintBtn.disabled = !connected
+    connectBtn.disabled = connected || !supported
+  })
+
+  connectBtn.onclick = async () => {
+    try {
+      const info = await printer.connect()
+      log(`connected to ${info.name} (${info.language})`)
+    } catch (error) {
+      log(`failed to connect: ${error.message}`)
+    }
+  }
+
+  disconnectBtn.onclick = async () => {
+    await printer.disconnect()
+    log('disconnected')
+  }
+
+  function buildAsciiRuler() {
+    return '1234567890 ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  }
+
+  testPrintBtn.onclick = async () => {
+    try {
+      await printer.printReceipt({
+        content: [
+          { type: 'text', value: 'TEST PRINT', align: 'center', bold: true },
+          { type: 'rule' },
+          { type: 'text', value: `Date/Time: ${new Date().toLocaleString()}` },
+          { type: 'text', value: buildAsciiRuler() },
+          { type: 'rule' },
+          { type: 'text', value: 'END OF TEST', align: 'center' },
+          { type: 'newline', lines: 2 },
+        ],
+        cut: 'full',
+      })
+      log('test print sent')
+    } catch (error) {
+      log(`test print failed: ${error.message}`)
+    }
+  }
+
+  printBtn.onclick = async () => {
+    const lines = textInput.value.split('\n').map((l) => l.trim()).filter(Boolean)
+    const align = alignSelect.value
+    const bold = boldCheck.checked
+    const file = imageInput.files[0]
+
+    const content = []
+    if (file) content.push({ type: 'image', source: file, align: 'center' })
+    for (const line of lines) content.push({ type: 'text', value: line, align, bold })
+    content.push({ type: 'newline', lines: 2 })
+
+    if (content.length === 0) {
+      log('nothing to print — fill in the text or choose an image')
+      return
+    }
+
+    try {
+      await printer.printReceipt({ content, cut: 'full' })
+      log('receipt sent')
+    } catch (error) {
+      log(`failed to print: ${error.message}`)
+    }
+  }
+</script>
+
+</body>
+</html>
