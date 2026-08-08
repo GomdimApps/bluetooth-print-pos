@@ -17,6 +17,13 @@ used at build time to produce the artifacts. It also includes a
 [print preview](#print-preview) that renders exactly what would be printed
 — text, images, barcodes, QR codes — as an image, with no printer needed.
 
+![Real thermal print next to the matching browser preview and connection log](docs/images/test-mobile-printer.png)
+
+*Left: real receipt off a Bluetooth thermal printer. Right: the exact same
+job rendered by [`renderPreview()`](#print-preview) in the browser, with
+the connection/print log underneath — no editing, this is the actual
+side-by-side test output.*
+
 There are two ways to use it, covered in detail below:
 
 - **[Standalone](#standalone-usage-no-dependencies)** — a single self-contained `<script>` file, zero install, zero dependencies for the consumer.
