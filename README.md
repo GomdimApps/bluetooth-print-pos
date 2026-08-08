@@ -5,12 +5,13 @@ Builds receipts (text, images, barcodes, QR codes) from a JSON-serializable
 object and sends them to the printer — the caller never needs to know
 anything about ESC/POS encoding.
 
-It wraps two libraries from the [@point-of-sale](https://point-of-sale.dev)
-ecosystem:
-[`receipt-printer-encoder`](https://github.com/NielsLeenheer/ReceiptPrinterEncoder)
-(builds the commands) and
-[`webbluetooth-receipt-printer`](https://github.com/NielsLeenheer/WebBluetoothReceiptPrinter)
-(talks to the printer over Web Bluetooth).
+It wraps [`receipt-printer-encoder`](https://github.com/NielsLeenheer/ReceiptPrinterEncoder)
+from the [@point-of-sale](https://point-of-sale.dev) ecosystem to build the
+ESC/POS commands. The Web Bluetooth connectivity itself — device discovery,
+profile matching, chunked writes — is this project's own code (ported from
+[`WebBluetoothReceiptPrinter`](https://github.com/NielsLeenheer/WebBluetoothReceiptPrinter),
+see [src/interfaces/bluetooth/](src/interfaces/bluetooth/)), not an external
+dependency.
 
 Runs **entirely in the browser, with no Node at runtime** — Node is only
 used at build time to produce the artifacts. It also includes a
@@ -35,8 +36,8 @@ This is for a plain HTML page or a webview: no bundler, no `npm install`,
 no build step at all on the consuming side. The published package already
 ships a prebuilt, self-contained UMD bundle at
 `build/printer-wrapper.js` — it bundles `@point-of-sale/receipt-printer-encoder`
-and `@point-of-sale/webbluetooth-receipt-printer` internally, so **you don't
-need to install or reference those two libraries yourself**.
+and all of this project's own Bluetooth connectivity code internally, so
+**you don't need to install or reference anything else yourself**.
 
 Grab that one file — either from
 `node_modules/bluetooth-print-pos/build/printer-wrapper.js` after
@@ -100,13 +101,13 @@ async function onPrintClick() {
 }
 ```
 
-The published ESM build treats `@point-of-sale/receipt-printer-encoder` and
-`@point-of-sale/webbluetooth-receipt-printer` as externals rather than
-bundling them, so they come along as regular npm `dependencies` and your
-own bundler (Vite/webpack) resolves and dedupes them normally. Full
-TypeScript declarations (`PrintJob`, `PrintJobElement`, `PrinterStatusEvent`,
-etc.) ship in `build/types` — the `import` above already gives you
-autocomplete.
+The published ESM build treats `@point-of-sale/receipt-printer-encoder` as
+an external rather than bundling it, so it comes along as a regular npm
+`dependency` and your own bundler (Vite/webpack) resolves and dedupes it
+normally. Bluetooth connectivity is this project's own source, so it's
+always bundled in either build. Full TypeScript declarations (`PrintJob`,
+`PrintJobElement`, `PrinterStatusEvent`, etc.) ship in `build/types` — the
+`import` above already gives you autocomplete.
 
 ### `require()` usage — same self-contained bundle as standalone
 
@@ -114,9 +115,8 @@ If your project uses `require()` instead of `import` — a Vue 2 app, an
 older webpack config, or plain Node-based tooling — `bluetooth-print-pos`
 resolves to the **same self-contained bundle as the
 [standalone](#standalone-usage-no-dependencies) `<script>` version**, not
-the ESM one. `@point-of-sale/receipt-printer-encoder` and
-`@point-of-sale/webbluetooth-receipt-printer` are already bundled in, so you
-don't need them as separate dependencies on this path either.
+the ESM one. `@point-of-sale/receipt-printer-encoder` is already bundled in,
+so you don't need it as a separate dependency on this path either.
 
 ```js
 const PrinterWrapper = require('bluetooth-print-pos')

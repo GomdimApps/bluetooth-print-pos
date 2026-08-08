@@ -40,16 +40,21 @@ webpack.config.js               # array: umdConfig() + esmConfig()
 tsconfig.json / tsconfig.build.json   # the latter only for `build:types` (.d.ts emission)
 
 src/types.ts                    # all public types (PrintJob, PrintJobElement, PrinterWrapperConfig, ...)
-src/types/point-of-sale.d.ts    # hand-written ambient types for @point-of-sale/* (they ship none)
+src/types/point-of-sale.d.ts    # hand-written ambient types for @point-of-sale/receipt-printer-encoder (it ships none)
 src/types/canvas-dither.d.ts    # same, for canvas-dither
+
+src/interfaces/
+  PrinterTransport.ts           # transport-agnostic interface (getInfo/connect/disconnect/isConnected/print) — kept generic so a future WebUSB transport can implement it too
+  printerErrors.ts              # shared PrinterError normalization (toPrinterError/normalizeConnectError/normalizePrintError)
+
+  bluetooth/
+    profiles.ts                 # BLUETOOTH_PROFILES table + findProfile() — every known printer profile, shared by both transports
+    writeChunked.ts             # chunked BLE characteristic writes (messageSize/sleepAfterCommand per profile)
+    DefaultBluetoothTransport.ts   # default transport — requestDevice({ filters }) restricted to known profiles
+    CompatBluetoothTransport.ts    # fallback transport — acceptAllDevices + post-connect profile matching
 
 src/Printer/
   PrinterWrapper.ts             # public API class — connect/disconnect/printReceipt/printRaw/renderPreview
-  BluetoothTransport.ts         # interface both Bluetooth transports implement
-  BluetoothPrinter.ts           # default transport — thin wrapper over @point-of-sale/webbluetooth-receipt-printer
-  CompatBluetoothPrinter.ts     # fallback transport — acceptAllDevices + own profile matching
-  bluetoothProfiles.ts          # the printer profile table CompatBluetoothPrinter matches against
-  printerErrors.ts              # shared PrinterError normalization (toPrinterError/normalizeConnectError/normalizePrintError)
   ReceiptBuilder.ts             # PrintJob -> ESC/POS bytes via @point-of-sale/receipt-printer-encoder
 
 src/Text/
@@ -129,25 +134,37 @@ These cost real debugging time. Don't reintroduce them.
 7. **Web Bluetooth's `requestDevice()` with `filters` restricts the device
    picker to matching devices** — a printer whose name/service isn't in the
    filter list never appears, regardless of whether it would work if
-   selected. That's why there are two transports: `BluetoothPrinter.ts`
-   (default, filtered, via the npm lib) and `CompatBluetoothPrinter.ts`
-   (`acceptAllDevices: true`, matches its own broader profile table in
-   `bluetoothProfiles.ts` *after* connecting). `connect({ compat: true })`
-   selects the latter.
+   selected. That's why there are two transports, both in
+   `src/interfaces/bluetooth/`: `DefaultBluetoothTransport.ts` (filtered,
+   `requestDevice({ filters: ALL_FILTERS })`) and
+   `CompatBluetoothTransport.ts` (`acceptAllDevices: true`, matches *after*
+   connecting instead). Both read from the same `profiles.ts` table and
+   `findProfile()` — the only real difference between them is the
+   `requestDevice()` call itself. `connect({ compat: true })` selects the
+   latter. This whole layer was ported in-house from
+   [WebBluetoothReceiptPrinter](https://github.com/NielsLeenheer/WebBluetoothReceiptPrinter)
+   (read in full from its `main` branch, not guessed) — this project no
+   longer depends on that npm package. Its "Cat printer" profile (a
+   different, non-ESC/POS/StarPRNT protocol, `language: 'meow'`) and its
+   status-characteristic notifications were deliberately not ported — see
+   Scope limits below.
 
 8. **`connect()` must be called from a real user gesture** (click handler),
    both transports — browser requirement, not ours. `SecurityError` from
    `requestDevice()` means it wasn't.
 
-9. **Neither `@point-of-sale/*` package ships TypeScript types.** The
-   ambient declarations in `src/types/point-of-sale.d.ts` were hand-written
-   by reading the installed `dist/*.esm.js` bundles directly (they're
-   minified but readable) — not a complete typing of their APIs, only what
-   this project calls. If you need another method from either library,
-   read the installed bundle first; don't guess the signature.
+9. **`@point-of-sale/receipt-printer-encoder` ships no TypeScript types.**
+   The ambient declarations in `src/types/point-of-sale.d.ts` were
+   hand-written by reading the installed `dist/*.esm.js` bundle directly
+   (minified but readable) — not a complete typing of its API, only what
+   this project calls. If you need another method from it, read the
+   installed bundle first; don't guess the signature. (Bluetooth
+   connectivity used to be a second untyped `@point-of-sale/*` package —
+   now it's this project's own TypeScript in `src/interfaces/bluetooth/`,
+   so it needs no ambient declarations at all.)
 
 10. **The webpack UMD config needs `resolve.conditionNames` including
-    `'browser'` explicitly.** `@point-of-sale/webbluetooth-receipt-printer`'s
+    `'browser'` explicitly.** `@point-of-sale/receipt-printer-encoder`'s
     `package.json#exports` only declares a `"browser"` condition (no
     top-level `import`/`require` fallback) — without it, resolution fails.
 
@@ -155,8 +172,9 @@ These cost real debugging time. Don't reintroduce them.
 
 - **Extract data tables and error-handling into their own files** once a
   file starts mixing "static data" with "logic that uses it" — e.g.
-  `bluetoothProfiles.ts` (data) vs `CompatBluetoothPrinter.ts` (logic using
-  it), `printerErrors.ts` (shared across transports). Keep orchestrator
+  `src/interfaces/bluetooth/profiles.ts` (data) vs
+  `DefaultBluetoothTransport.ts`/`CompatBluetoothTransport.ts` (logic using
+  it), `src/interfaces/printerErrors.ts` (shared across transports). Keep orchestrator
   files (`applyTextElement`, `renderPreviewCanvas`, `buildReceiptBytes`)
   thin — they should read as "call step 1, step 2, step 3", not contain the
   step implementations inline.
@@ -206,6 +224,21 @@ These cost real debugging time. Don't reintroduce them.
   `raw()` path; non-ASCII lines (only reachable with `stripAccents: false`)
   fall back to unpadded `encoder.text()` and rely on the printer's native
   align command.
+- Only Bluetooth is implemented. `src/interfaces/PrinterTransport.ts` is
+  deliberately transport-agnostic (no Bluetooth-specific parameters in its
+  shape) so a future WebUSB transport
+  ([WebUSBReceiptPrinter](https://github.com/NielsLeenheer/WebUSBReceiptPrinter))
+  could implement it as `src/interfaces/usb/` without changing
+  `PrinterWrapper.ts`'s shape — but that port hasn't been done, there is no
+  USB code in this repo yet.
+- Upstream WebBluetoothReceiptPrinter's "Cat printer" profile
+  (`language: 'meow'`, a different, non-ESC/POS/StarPRNT protocol) was not
+  ported into `profiles.ts` — `ReceiptPrinterEncoder` doesn't speak that
+  protocol, so there'd be nothing valid to print with it. Its `status`
+  characteristic + `listen()`/notification support wasn't ported either —
+  nothing in this project subscribes to printer status notifications today
+  (`PrinterWrapper`'s `onStatusChange` is this wrapper's own connect/print
+  lifecycle events, unrelated to a physical notify characteristic).
 
 ## Docker demo
 

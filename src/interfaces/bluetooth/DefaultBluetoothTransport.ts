@@ -1,23 +1,27 @@
-import type { PrinterInfo } from '../types'
-import type { BluetoothTransport } from './BluetoothTransport'
-import { isBluetoothSupported } from './BluetoothPrinter'
-import { ALL_SERVICE_UUIDS, findCompatProfile } from './bluetoothProfiles'
-import { normalizeConnectError, normalizePrintError, toPrinterError } from './printerErrors'
+import type { PrinterInfo } from '../../types'
+import type { PrinterTransport } from '../PrinterTransport'
+import { normalizeConnectError, normalizePrintError, toPrinterError } from '../printerErrors'
+import { ALL_FILTERS, ALL_SERVICE_UUIDS, findProfile, type BluetoothPrinterProfile } from './profiles'
+import { writeChunked } from './writeChunked'
 
-const WRITE_CHUNK_SIZE = 100
+/** true if the current browser exposes the Web Bluetooth API. */
+export function isBluetoothSupported(): boolean {
+  return typeof navigator !== 'undefined' && 'bluetooth' in navigator
+}
 
 /**
- * Compatibility Bluetooth transport: instead of restricting the device
- * picker to a small set of known filters, it lists every nearby BLE device
- * (`acceptAllDevices: true`) and only checks which known printer profile
- * applies *after* the user picks one and GATT-connects. Reaches printers
- * the default BluetoothPrinter transport can't even list, at the cost of a
- * noisier device picker. Ported from example/configPrint.ts's btConnect/btWrite.
- * Printer profiles themselves live in bluetoothProfiles.ts.
+ * Default Bluetooth transport, ported from
+ * github.com/NielsLeenheer/WebBluetoothReceiptPrinter's `main.js` (read in
+ * full from its `main` branch): `requestDevice({ filters, optionalServices })`
+ * restricts the OS device picker itself to the profiles in profiles.ts, so
+ * it stays clean, at the cost of printers outside that list never showing
+ * up as an option at all — see CompatBluetoothTransport.ts for a broader,
+ * opt-in alternative that lists every device instead.
  */
-export class CompatBluetoothPrinter implements BluetoothTransport {
+export class DefaultBluetoothTransport implements PrinterTransport {
   private device: BluetoothDevice | null = null
   private characteristic: BluetoothRemoteGATTCharacteristic | null = null
+  private profile: BluetoothPrinterProfile | null = null
   private info: PrinterInfo | null = null
 
   getInfo(): PrinterInfo | null {
@@ -32,7 +36,7 @@ export class CompatBluetoothPrinter implements BluetoothTransport {
     let device: BluetoothDevice
     try {
       device = await navigator.bluetooth.requestDevice({
-        acceptAllDevices: true,
+        filters: ALL_FILTERS,
         optionalServices: ALL_SERVICE_UUIDS,
       })
     } catch (error) {
@@ -50,7 +54,7 @@ export class CompatBluetoothPrinter implements BluetoothTransport {
     }
   }
 
-  /** GATT-connects, matches a known profile and grabs its write characteristic. Throws on any failure. */
+  /** GATT-connects, matches a known profile (same as upstream's #evaluateFilter, re-run after connecting) and grabs its write characteristic. */
   private async connectToDevice(device: BluetoothDevice): Promise<PrinterInfo> {
     if (!device.gatt) {
       throw toPrinterError('connect-failed', `Printer "${deviceLabel(device)}" has no GATT server.`)
@@ -60,7 +64,7 @@ export class CompatBluetoothPrinter implements BluetoothTransport {
     const services = await server.getPrimaryServices()
     const serviceUuids = services.map((service) => service.uuid)
 
-    const profile = findCompatProfile(device.name, serviceUuids)
+    const profile = findProfile(device.name, serviceUuids)
     if (!profile) {
       server.disconnect()
       throw toPrinterError(
@@ -72,6 +76,7 @@ export class CompatBluetoothPrinter implements BluetoothTransport {
 
     const service = await server.getPrimaryService(profile.service)
     this.characteristic = await service.getCharacteristic(profile.characteristic)
+    this.profile = profile
 
     return {
       type: 'bluetooth',
@@ -97,7 +102,10 @@ export class CompatBluetoothPrinter implements BluetoothTransport {
     }
 
     try {
-      await writeChunked(this.characteristic, bytes)
+      await writeChunked(this.characteristic, bytes, {
+        messageSize: this.profile?.messageSize,
+        sleepAfterCommand: this.profile?.sleepAfterCommand,
+      })
     } catch (error) {
       throw normalizePrintError(error)
     }
@@ -106,16 +114,11 @@ export class CompatBluetoothPrinter implements BluetoothTransport {
   private reset(): void {
     this.device = null
     this.characteristic = null
+    this.profile = null
     this.info = null
   }
 }
 
 function deviceLabel(device: BluetoothDevice): string {
   return device.name ?? device.id
-}
-
-async function writeChunked(characteristic: BluetoothRemoteGATTCharacteristic, bytes: Uint8Array): Promise<void> {
-  for (let offset = 0; offset < bytes.length; offset += WRITE_CHUNK_SIZE) {
-    await characteristic.writeValueWithResponse(bytes.slice(offset, offset + WRITE_CHUNK_SIZE))
-  }
 }

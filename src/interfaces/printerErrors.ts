@@ -1,6 +1,6 @@
 import type { PrinterError } from '../types'
 
-/** Shared by every Bluetooth transport so error codes stay consistent across strategies. */
+/** Shared by every printer transport so error codes stay consistent across strategies. */
 export function toPrinterError(code: PrinterError['code'], message: string): PrinterError {
   return { code, message }
 }

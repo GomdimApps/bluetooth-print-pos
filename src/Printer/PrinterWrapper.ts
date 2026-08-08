@@ -1,10 +1,10 @@
 import { resolveConfig } from '../../config'
-import { BluetoothPrinter, isBluetoothSupported } from './BluetoothPrinter'
-import { CompatBluetoothPrinter } from './CompatBluetoothPrinter'
+import { DefaultBluetoothTransport, isBluetoothSupported } from '../interfaces/bluetooth/DefaultBluetoothTransport'
+import { CompatBluetoothTransport } from '../interfaces/bluetooth/CompatBluetoothTransport'
 import { buildReceiptBytes } from './ReceiptBuilder'
-import { normalizePrintError } from './printerErrors'
+import { normalizePrintError } from '../interfaces/printerErrors'
 import { renderPreviewCanvas } from '../Preview/PreviewRenderer'
-import type { BluetoothTransport } from './BluetoothTransport'
+import type { PrinterTransport } from '../interfaces/PrinterTransport'
 import type {
   PrinterError,
   PrinterInfo,
@@ -23,7 +23,7 @@ export interface ConnectOptions {
    * Uses a broader Bluetooth device picker (`acceptAllDevices: true`) and a
    * larger set of known printer profiles instead of the default's small,
    * filtered picker. Try this when a printer doesn't show up, or doesn't
-   * connect, with the default `connect()`. See CompatBluetoothPrinter.ts.
+   * connect, with the default `connect()`. See ../interfaces/bluetooth/CompatBluetoothTransport.ts.
    */
   compat?: boolean
 }
@@ -38,9 +38,9 @@ export interface ConnectOptions {
  */
 export class PrinterWrapper {
   private readonly config: PrinterWrapperConfig
-  private readonly bluetooth = new BluetoothPrinter()
-  private readonly compatBluetooth = new CompatBluetoothPrinter()
-  private active: BluetoothTransport | null = null
+  private readonly bluetooth = new DefaultBluetoothTransport()
+  private readonly compatBluetooth = new CompatBluetoothTransport()
+  private active: PrinterTransport | null = null
   private readonly listeners = new Set<(event: PrinterStatusEvent) => void>()
   private printing = false
 
