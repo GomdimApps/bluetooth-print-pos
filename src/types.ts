@@ -11,6 +11,9 @@ export type PaperWidth = '58mm' | '80mm' | '112mm'
 
 export type Alignment = 'left' | 'center' | 'right'
 
+/** Text-only: stretches each line (except a paragraph's last) to fill the full column width. */
+export type TextAlignment = Alignment | 'justify'
+
 export interface PrinterWrapperConfig {
   /** Number of text columns the printer has (used for line wrapping and the test receipt). */
   columns: number
@@ -90,7 +93,7 @@ export type PrintJobElement =
   | {
       type: 'text'
       value: string
-      align?: Alignment
+      align?: TextAlignment
       bold?: boolean
       underline?: boolean
       /** width, or [width, height] (1-8), same as the encoder's size(). */

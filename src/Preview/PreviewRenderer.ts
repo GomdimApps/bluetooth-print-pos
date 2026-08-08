@@ -1,5 +1,5 @@
 import { resolveColumns, resolveImageMaxWidth } from '../../config'
-import { stripAccents, wrapText } from '../Text/sample'
+import { stripAccents, wrapText, justifyLine } from '../Text/sample'
 import { prepareDitheredImage, type DitheredImage } from './imageDither'
 import { buildCode128 } from './code128'
 import { buildItf } from './itf'
@@ -54,10 +54,16 @@ export async function renderPreviewCanvas(job: PrintJob, defaults: PrinterWrappe
         const value = stripAccentsEnabled ? stripAccents(element.value) : element.value
         const [, sizeHeight] = Array.isArray(element.size) ? element.size : [element.size, element.size]
         const scale = sizeHeight ?? 1
+        const align = element.align ?? 'left'
+        // 'justify' bakes its spacing into the line text itself (same as the
+        // real print path) — textDrawable only ever sees left/center/right.
+        const lines = wrapText(value, columns).map((wrapped) =>
+          align === 'justify' && !wrapped.isLastLineOfParagraph ? justifyLine(wrapped.text, columns) : wrapped.text,
+        )
         drawables.push(
           textDrawable(
-            wrapText(value, columns),
-            element.align ?? 'left',
+            lines,
+            align === 'justify' ? 'left' : align,
             element.bold ?? false,
             element.underline ?? false,
             baseFontSizePx * scale,

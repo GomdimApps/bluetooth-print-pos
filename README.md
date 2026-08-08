@@ -155,6 +155,27 @@ for the full shape of each one.
 Errors arrive as a rejected Promise with a `.code`:
 `unsupported | user-gesture-required | connect-cancelled | connect-failed | not-connected | busy | print-failed`.
 
+### Text alignment, including justify
+
+A `text` element's `align` accepts `'left' | 'center' | 'right' | 'justify'`
+(the other elements — `image`/`barcode`/`qrcode` — only take the first
+three, alignment doesn't apply to `'justify'` there):
+
+```ts
+{ type: 'text', value: 'Lorem ipsum dolor sit amet...', align: 'justify' }
+```
+
+`'justify'` stretches every line to the full paper width by distributing
+extra spaces between words — except a paragraph's last line, which is left
+ragged (standard convention, same as word processors). A single word too
+long to fit a line on its own is hyphenated (`-`) at the break instead of
+being cut silently.
+
+Alignment doesn't rely on the printer's own ESC/POS align command — some
+cheap clone printers don't honor it for plain text. Instead, every line is
+padded/justified into an exact-width string and sent as raw bytes, so
+alignment is correct on any hardware.
+
 ### Printer type and paper size
 
 Paper width, protocol and codepage can all be injected — either once at
