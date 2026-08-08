@@ -7,7 +7,7 @@ import { buildCode128 } from './code128'
 import { buildItf } from './itf'
 import { buildQrCode, type QrCodeDrawing } from './qrcode'
 import type { BarcodeDrawing } from './barcodeDrawing'
-import type { Alignment, PrintJob, PrinterWrapperConfig, PrintPreview } from '../types'
+import type { Alignment, PrintJob, PrintJobElement, PrinterWrapperConfig, PrintPreview } from '../types'
 
 const MARGIN_PX = 16
 const FONT_FAMILY = 'ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace'
@@ -52,28 +52,9 @@ export async function renderPreviewCanvas(job: PrintJob, defaults: PrinterWrappe
 
   for (const element of job.content) {
     switch (element.type) {
-      case 'text': {
-        const value = stripAccentsEnabled ? stripAccents(element.value) : element.value
-        const [, sizeHeight] = Array.isArray(element.size) ? element.size : [element.size, element.size]
-        const scale = sizeHeight ?? 1
-        const align = element.align ?? 'left'
-        // 'justify' bakes its spacing into the line text itself (same as the
-        // real print path) — textDrawable only ever sees left/center/right.
-        const lines = wrapText(value, columns).map((wrapped) =>
-          align === 'justify' && !wrapped.isLastLineOfParagraph ? justifyLine(wrapped.text, columns) : wrapped.text,
-        )
-        drawables.push(
-          textDrawable(
-            lines,
-            align === 'justify' ? 'left' : align,
-            element.bold ?? false,
-            element.underline ?? false,
-            baseFontSizePx * scale,
-            lineHeightPx * scale,
-          ),
-        )
+      case 'text':
+        drawables.push(buildTextDrawable(element, columns, stripAccentsEnabled, baseFontSizePx, lineHeightPx))
         break
-      }
 
       case 'newline':
         drawables.push(spaceDrawable(lineHeightPx * (element.lines ?? 1)))
@@ -85,34 +66,18 @@ export async function renderPreviewCanvas(job: PrintJob, defaults: PrinterWrappe
 
       case 'image': {
         // eslint-disable-next-line no-await-in-loop -- preview mirrors the sequential real print path.
-        const dithered = await prepareDitheredImage(element.source, {
-          maxWidth: element.maxWidth ?? contentWidthPx,
-          minWidth: element.minWidth ?? defaults.imageMinWidth,
-          minHeight: element.minHeight ?? defaults.imageMinHeight,
-          threshold: element.threshold ?? defaults.imageThreshold,
-        })
-        if (dithered) drawables.push(imageDrawable(dithered, element.align ?? 'center'))
+        const drawable = await buildImageDrawable(element, defaults, contentWidthPx)
+        if (drawable) drawables.push(drawable)
         break
       }
 
-      case 'barcode': {
-        const symbology = element.symbology ?? 'code128'
-        const moduleWidthPx = element.width ?? BARCODE_DEFAULT_MODULE_PX
-        const heightPx = element.height ?? BARCODE_DEFAULT_HEIGHT_PX
-        const barcode = buildRealBarcode(symbology, element.value, moduleWidthPx, heightPx)
-        drawables.push(
-          barcode
-            ? realBarcodeDrawable(barcode, element.align ?? 'center', contentWidthPx)
-            : placeholderDrawable(symbology, element.value, heightPx, element.align ?? 'center'),
-        )
+      case 'barcode':
+        drawables.push(buildBarcodeDrawable(element, contentWidthPx))
         break
-      }
 
-      case 'qrcode': {
-        const cellSizePx = element.size ?? QRCODE_DEFAULT_CELL_PX
-        drawables.push(qrDrawable(buildQrCode(element.value, cellSizePx), element.align ?? 'center'))
+      case 'qrcode':
+        drawables.push(buildQrDrawable(element))
         break
-      }
 
       default: {
         const exhaustiveCheck: never = element
@@ -162,6 +127,63 @@ function alignOffset(align: Alignment, contentWidthPx: number, blockWidthPx: num
   if (align === 'center') return Math.max(0, (contentWidthPx - blockWidthPx) / 2)
   if (align === 'right') return Math.max(0, contentWidthPx - blockWidthPx)
   return 0
+}
+
+function buildTextDrawable(
+  element: PrintJobElement & { type: 'text' },
+  columns: number,
+  stripAccentsEnabled: boolean,
+  baseFontSizePx: number,
+  lineHeightPx: number,
+): Drawable {
+  const value = stripAccentsEnabled ? stripAccents(element.value) : element.value
+  const [, sizeHeight] = Array.isArray(element.size) ? element.size : [element.size, element.size]
+  const scale = sizeHeight ?? 1
+  const align = element.align ?? 'left'
+
+  // 'justify' bakes its spacing into the line text itself (same as the
+  // real print path) — textDrawable only ever sees left/center/right.
+  const lines = wrapText(value, columns).map((wrapped) =>
+    align === 'justify' && !wrapped.isLastLineOfParagraph ? justifyLine(wrapped.text, columns) : wrapped.text,
+  )
+
+  return textDrawable(
+    lines,
+    align === 'justify' ? 'left' : align,
+    element.bold ?? false,
+    element.underline ?? false,
+    baseFontSizePx * scale,
+    lineHeightPx * scale,
+  )
+}
+
+async function buildImageDrawable(
+  element: PrintJobElement & { type: 'image' },
+  defaults: PrinterWrapperConfig,
+  contentWidthPx: number,
+): Promise<Drawable | null> {
+  const dithered = await prepareDitheredImage(element.source, {
+    maxWidth: element.maxWidth ?? contentWidthPx,
+    minWidth: element.minWidth ?? defaults.imageMinWidth,
+    minHeight: element.minHeight ?? defaults.imageMinHeight,
+    threshold: element.threshold ?? defaults.imageThreshold,
+  })
+  return dithered ? imageDrawable(dithered, element.align ?? 'center') : null
+}
+
+function buildBarcodeDrawable(element: PrintJobElement & { type: 'barcode' }, contentWidthPx: number): Drawable {
+  const symbology = element.symbology ?? 'code128'
+  const moduleWidthPx = element.width ?? BARCODE_DEFAULT_MODULE_PX
+  const heightPx = element.height ?? BARCODE_DEFAULT_HEIGHT_PX
+  const barcode = buildRealBarcode(symbology, element.value, moduleWidthPx, heightPx)
+  return barcode
+    ? realBarcodeDrawable(barcode, element.align ?? 'center', contentWidthPx)
+    : placeholderDrawable(symbology, element.value, heightPx, element.align ?? 'center')
+}
+
+function buildQrDrawable(element: PrintJobElement & { type: 'qrcode' }): Drawable {
+  const cellSizePx = element.size ?? QRCODE_DEFAULT_CELL_PX
+  return qrDrawable(buildQrCode(element.value, cellSizePx), element.align ?? 'center')
 }
 
 function textDrawable(
