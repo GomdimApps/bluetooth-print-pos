@@ -49,6 +49,18 @@
 
 <fieldset>
   <legend>Receipt</legend>
+  <label for="paperWidthSelect">Paper width</label>
+  <select id="paperWidthSelect">
+    <option value="" selected>Default (58mm, 32 cols)</option>
+    <option value="58mm">58mm</option>
+    <option value="80mm">80mm</option>
+    <option value="112mm">112mm (~4in)</option>
+  </select>
+  <p class="note">
+    Scales both text wrapping and the image/barcode width ceiling — applies to
+    Print, Preview and Test Print below.
+  </p>
+
   <label for="textInput">Text (one line per row in the field)</label>
   <textarea id="textInput" placeholder="Line 1&#10;Line 2"></textarea>
 
@@ -106,6 +118,7 @@
   const disconnectBtn = document.getElementById('disconnectBtn')
   const printBtn = document.getElementById('printBtn')
   const testPrintBtn = document.getElementById('testPrintBtn')
+  const paperWidthSelect = document.getElementById('paperWidthSelect')
   const textInput = document.getElementById('textInput')
   const alignSelect = document.getElementById('alignSelect')
   const boldCheck = document.getElementById('boldCheck')
@@ -172,9 +185,14 @@
     return '1234567890 ABCDEFGHIJKLMNOPQRSTUVWXYZ'
   }
 
+  function selectedPaperWidth() {
+    return paperWidthSelect.value || undefined
+  }
+
   testPrintBtn.onclick = async () => {
     try {
       await printer.printReceipt({
+        paperWidth: selectedPaperWidth(),
         content: [
           { type: 'text', value: 'TEST PRINT', align: 'center', bold: true },
           { type: 'rule' },
@@ -207,7 +225,7 @@
     if (qrValue) content.push({ type: 'qrcode', value: qrValue })
     content.push({ type: 'newline', lines: 2 })
 
-    return content.length > 0 ? { content, cut: 'full' } : null
+    return content.length > 0 ? { paperWidth: selectedPaperWidth(), content, cut: 'full' } : null
   }
 
   printBtn.onclick = async () => {
