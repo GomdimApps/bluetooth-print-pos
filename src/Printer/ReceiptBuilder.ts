@@ -4,6 +4,11 @@ import { applyTextElement } from '../Text/sample'
 import { applyImageElement } from '../Images/image'
 import type { PrintJob, PrinterWrapperConfig } from '../types'
 
+// Barcode height/width defaults (encoder has none of its own). Matches
+// PreviewRenderer.ts's defaults so preview and real print line up.
+const BARCODE_DEFAULT_MODULE_WIDTH = 2
+const BARCODE_DEFAULT_HEIGHT = 64
+
 /**
  * Walks `job.content` in order and builds the ESC/POS/StarPRNT bytes ready
  * to send to the printer. This is where the "generic" PrintJob shape (which
@@ -13,11 +18,16 @@ import type { PrintJob, PrinterWrapperConfig } from '../types'
 export async function buildReceiptBytes(job: PrintJob, defaults: PrinterWrapperConfig): Promise<Uint8Array> {
   const stripAccentsEnabled = job.stripAccents ?? defaults.stripAccents
 
+  // Only included when set — the encoder overwrites its own defaults if
+  // these keys are present at all, even with value `undefined`.
+  const codepageMapping = job.codepageMapping ?? defaults.codepageMapping
+  const printerModel = job.printerModel ?? defaults.printerModel
+
   const encoder = new ReceiptPrinterEncoder({
     columns: resolveColumns(job.columns, job.paperWidth, defaults.columns),
     language: job.language ?? defaults.language,
-    codepageMapping: job.codepageMapping ?? defaults.codepageMapping,
-    printerModel: job.printerModel ?? defaults.printerModel,
+    ...(codepageMapping !== undefined ? { codepageMapping } : {}),
+    ...(printerModel !== undefined ? { printerModel } : {}),
   })
 
   encoder.initialize()
@@ -45,15 +55,18 @@ export async function buildReceiptBytes(job: PrintJob, defaults: PrinterWrapperC
       case 'barcode':
         encoder.align(element.align ?? 'center')
         encoder.barcode(element.value, element.symbology ?? 'code128', {
-          height: element.height,
-          width: element.width,
+          height: element.height ?? BARCODE_DEFAULT_HEIGHT,
+          width: element.width ?? BARCODE_DEFAULT_MODULE_WIDTH,
         })
         break
 
-      case 'qrcode':
+      case 'qrcode': {
+        // Same undefined-key hazard as codepageMapping/printerModel — omit when not set.
         encoder.align(element.align ?? 'center')
-        encoder.qrcode(element.value, { size: element.size })
+        const qrOptions = element.size !== undefined ? { size: element.size } : {}
+        encoder.qrcode(element.value, qrOptions)
         break
+      }
 
       default: {
         const exhaustiveCheck: never = element
