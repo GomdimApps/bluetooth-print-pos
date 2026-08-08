@@ -12,7 +12,7 @@ const LINE_HEIGHT_RATIO = 1.35
 const CUT_HEIGHT_PX = 32
 const BARCODE_DEFAULT_MODULE_PX = 2
 const BARCODE_DEFAULT_HEIGHT_PX = 64
-const QRCODE_DEFAULT_CELL_PX = 4
+const QRCODE_DEFAULT_CELL_PX = 6 // matches ReceiptPrinterEncoder.qrcode()'s own default `size`
 const BLOCK_GAP_PX = 6
 const BACKGROUND = '#fff'
 
@@ -97,7 +97,7 @@ export async function renderPreviewCanvas(job: PrintJob, defaults: PrinterWrappe
       }
 
       case 'qrcode': {
-        const cellSizePx = (element.size ?? 1) * QRCODE_DEFAULT_CELL_PX
+        const cellSizePx = element.size ?? QRCODE_DEFAULT_CELL_PX
         drawables.push(qrDrawable(buildQrCode(element.value, cellSizePx), element.align ?? 'center'))
         break
       }
