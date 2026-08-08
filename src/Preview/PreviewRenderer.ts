@@ -2,8 +2,10 @@ import { resolveColumns } from '../../config'
 import { stripAccents } from '../Text/sample'
 import { wrapText } from './textLayout'
 import { prepareDitheredImage, type DitheredImage } from './imageDither'
-import { buildCode128, type Code128Barcode } from './code128'
+import { buildCode128 } from './code128'
+import { buildItf } from './itf'
 import { buildQrCode, type QrCodeDrawing } from './qrcode'
+import type { BarcodeDrawing } from './barcodeDrawing'
 import type { Alignment, PrintJob, PrinterWrapperConfig, PrintPreview } from '../types'
 
 const MARGIN_PX = 16
@@ -13,6 +15,7 @@ const CUT_HEIGHT_PX = 32
 const BARCODE_DEFAULT_MODULE_PX = 2
 const BARCODE_DEFAULT_HEIGHT_PX = 64
 const QRCODE_DEFAULT_CELL_PX = 6 // matches ReceiptPrinterEncoder.qrcode()'s own default `size`
+const TOO_WIDE_LABEL_HEIGHT_PX = 16
 const BLOCK_GAP_PX = 6
 const BACKGROUND = '#fff'
 
@@ -87,10 +90,10 @@ export async function renderPreviewCanvas(job: PrintJob, defaults: PrinterWrappe
         const symbology = element.symbology ?? 'code128'
         const moduleWidthPx = element.width ?? BARCODE_DEFAULT_MODULE_PX
         const heightPx = element.height ?? BARCODE_DEFAULT_HEIGHT_PX
-        const barcode = symbology === 'code128' ? buildCode128(element.value, moduleWidthPx, heightPx) : null
+        const barcode = buildRealBarcode(symbology, element.value, moduleWidthPx, heightPx)
         drawables.push(
           barcode
-            ? barcodeDrawable(barcode, element.align ?? 'center')
+            ? realBarcodeDrawable(barcode, element.align ?? 'center', contentWidthPx)
             : placeholderDrawable(symbology, element.value, heightPx, element.align ?? 'center'),
         )
         break
@@ -203,12 +206,34 @@ function imageDrawable(dithered: DitheredImage, align: Alignment): Drawable {
   }
 }
 
-function barcodeDrawable(barcode: Code128Barcode, align: Alignment): Drawable {
+/** 'itf'/'interleaved-2-of-5' matches the real encoder's own symbology aliases for ITF. */
+function buildRealBarcode(symbology: string, value: string, moduleWidthPx: number, heightPx: number): BarcodeDrawing | null {
+  if (symbology === 'code128') return buildCode128(value, moduleWidthPx, heightPx)
+  if (symbology === 'itf' || symbology === 'interleaved-2-of-5') return buildItf(value, moduleWidthPx, heightPx)
+  return null
+}
+
+/** Draws a real barcode at its true computed size — if that's wider than the paper, it's left to
+ * overflow/clip naturally (showing exactly what would get cut off) plus a red "too wide" warning. */
+function realBarcodeDrawable(barcode: BarcodeDrawing, align: Alignment, paperContentWidthPx: number): Drawable {
+  const tooWide = barcode.widthPx > paperContentWidthPx
   return {
-    heightPx: barcode.heightPx,
+    heightPx: barcode.heightPx + (tooWide ? TOO_WIDE_LABEL_HEIGHT_PX : 0),
     draw(ctx, contentWidthPx, y) {
       const x = MARGIN_PX + alignOffset(align, contentWidthPx, barcode.widthPx)
       barcode.render(ctx, x, y)
+
+      if (!tooWide) return
+      ctx.strokeStyle = '#c00'
+      ctx.lineWidth = 2
+      ctx.strokeRect(x, y, barcode.widthPx, barcode.heightPx)
+      ctx.fillStyle = '#c00'
+      ctx.font = `11px ${FONT_FAMILY}`
+      ctx.fillText(
+        `too wide for paper (${Math.round(barcode.widthPx)}px > ${Math.round(paperContentWidthPx)}px) — try a smaller width or a wider paperWidth`,
+        MARGIN_PX,
+        y + barcode.heightPx + 3,
+      )
     },
   }
 }

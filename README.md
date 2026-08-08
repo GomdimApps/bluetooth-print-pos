@@ -199,7 +199,7 @@ PrinterBT/innoPrint-based printers) at the cost of a noisier device picker.
 `renderPreview(job)` renders a `PrintJob` to a canvas that simulates
 *exactly* what would come out of the printer — same text wrapping, same
 image resize + dithering (byte-identical to the real print, via the same
-`canvas-dither` the encoder uses internally), real scannable Code128
+`canvas-dither` the encoder uses internally), real scannable Code128/ITF
 barcodes and QR codes — without a printer, without connecting, and without
 even a browser that supports Web Bluetooth. Use it to catch layout/content
 mistakes (cut-off text, distorted images, wrong paper width, bad barcode
@@ -245,10 +245,21 @@ const preview = ref(null)
 onMounted(async () => { preview.value = await printer.renderPreview(job) })
 ```
 
-**Scope note**: real barcode rendering only covers `symbology: 'code128'`
-(the default) — other symbologies (upc/ean13/code39/etc.) render as a
-labeled placeholder box instead of a real symbol, since implementing every
-ESC/POS symbology was out of scope for this pass.
+**Scope note**: real barcode rendering covers `symbology: 'code128'` (the
+default) and `'itf'`/`'interleaved-2-of-5'` (bank slip/boleto-style numeric
+codes) — other symbologies (upc/ean13/code39/etc.) render as a labeled
+placeholder box instead of a real symbol, since implementing every ESC/POS
+symbology was out of scope for this pass.
+
+**"Too wide" warning**: some codes — a 44-digit boleto barcode is the
+classic case — are physically wider than the paper once rendered, and a
+real printer just prints its own `wide error!` instead of the barcode. The
+preview shows this ahead of time: it draws the barcode at its real size
+(clipped by the canvas edge, same as it'd be cut off in reality) with a red
+outline and a message telling you to reduce `width` or use a wider
+`paperWidth`. This is advisory only — `printReceipt()` always attempts the
+print regardless, since the real limit depends on the specific printer
+hardware, not just the configured paper width.
 
 ## Building from source
 

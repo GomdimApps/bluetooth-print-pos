@@ -64,8 +64,14 @@
   <label for="imageInput">Image (optional — becomes base64/File automatically)</label>
   <input type="file" id="imageInput" accept="image/*" />
 
-  <label for="barcodeInput">Barcode value (Code128, optional)</label>
+  <label for="barcodeInput">Barcode value (optional)</label>
   <input type="text" id="barcodeInput" placeholder="e.g. 123456789012" />
+
+  <label for="barcodeSymbologySelect">Barcode symbology</label>
+  <select id="barcodeSymbologySelect">
+    <option value="code128" selected>Code128</option>
+    <option value="itf">ITF (Interleaved 2 of 5 — e.g. bank slips/boleto)</option>
+  </select>
 
   <label for="qrInput">QR code content (optional)</label>
   <input type="text" id="qrInput" placeholder="e.g. https://example.com" />
@@ -74,7 +80,9 @@
   <button id="previewBtn">Preview</button>
   <p class="note">
     Preview renders exactly what would be printed — same text wrapping, same image
-    dithering, real scannable Code128/QR — with no printer and no Bluetooth needed at all.
+    dithering, real scannable Code128/ITF/QR — with no printer and no Bluetooth needed
+    at all. If a barcode is too wide for the paper, the preview shows it clipped with a
+    red warning instead of finding out from the printer's own "wide error!" on real paper.
   </p>
 </fieldset>
 
@@ -103,6 +111,7 @@
   const boldCheck = document.getElementById('boldCheck')
   const imageInput = document.getElementById('imageInput')
   const barcodeInput = document.getElementById('barcodeInput')
+  const barcodeSymbologySelect = document.getElementById('barcodeSymbologySelect')
   const qrInput = document.getElementById('qrInput')
   const previewBtn = document.getElementById('previewBtn')
   const previewImg = document.getElementById('previewImg')
@@ -194,7 +203,7 @@
     const content = []
     if (file) content.push({ type: 'image', source: file, align: 'center' })
     for (const line of lines) content.push({ type: 'text', value: line, align, bold })
-    if (barcodeValue) content.push({ type: 'barcode', value: barcodeValue, symbology: 'code128' })
+    if (barcodeValue) content.push({ type: 'barcode', value: barcodeValue, symbology: barcodeSymbologySelect.value })
     if (qrValue) content.push({ type: 'qrcode', value: qrValue })
     content.push({ type: 'newline', lines: 2 })
 

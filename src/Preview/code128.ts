@@ -12,6 +12,8 @@
  * industry standard, so reusing a mature, widely-deployed implementation's
  * copy is safer than retyping 107 values by hand.
  */
+import type { BarcodeDrawing } from './barcodeDrawing'
+
 const BARS: number[] = [
   11011001100, 11001101100, 11001100110, 10010011000, 10010001100,
   10001001100, 10011001000, 10011000100, 10001100100, 11001001000,
@@ -67,14 +69,8 @@ function toModulePattern(value: string): string {
     .join('')
 }
 
-export interface Code128Barcode {
-  widthPx: number
-  heightPx: number
-  render(ctx: CanvasRenderingContext2D, x: number, y: number): void
-}
-
 /** Builds a Code128 barcode ready to render, or null if `value` isn't Subset-B-encodable. */
-export function buildCode128(value: string, moduleWidthPx: number, heightPx: number): Code128Barcode | null {
+export function buildCode128(value: string, moduleWidthPx: number, heightPx: number): BarcodeDrawing | null {
   if (!isCode128Encodable(value)) return null
 
   const pattern = toModulePattern(value)
