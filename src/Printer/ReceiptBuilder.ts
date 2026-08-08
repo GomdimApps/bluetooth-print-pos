@@ -41,8 +41,8 @@ export async function buildReceiptBytes(job: PrintJob, defaults: PrinterWrapperC
   for (const element of job.content) {
     switch (element.type) {
       case 'text':
-        applyTextElement(encoder, element, stripAccentsEnabled)
-        encoder.newline()
+        // Emits its own newline(s), one per wrapped line — no extra newline() here.
+        applyTextElement(encoder, element, stripAccentsEnabled, columns)
         break
 
       case 'newline':

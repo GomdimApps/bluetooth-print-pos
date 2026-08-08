@@ -1,6 +1,5 @@
 import { resolveColumns, resolveImageMaxWidth } from '../../config'
-import { stripAccents } from '../Text/sample'
-import { wrapText } from './textLayout'
+import { stripAccents, wrapText } from '../Text/sample'
 import { prepareDitheredImage, type DitheredImage } from './imageDither'
 import { buildCode128 } from './code128'
 import { buildItf } from './itf'
