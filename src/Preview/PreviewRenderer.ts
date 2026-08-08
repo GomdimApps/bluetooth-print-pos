@@ -7,7 +7,7 @@ import { buildCode128 } from './code128'
 import { buildItf } from './itf'
 import { buildQrCode, type QrCodeDrawing } from './qrcode'
 import { buildPdf417 } from './pdf417'
-import type { BarcodeDrawing } from './barcodeDrawing'
+import type { BarcodeDrawing, BarcodeBuildResult } from './barcodeDrawing'
 import type { Alignment, PrintJob, PrintJobElement, PrinterWrapperConfig, PrintPreview } from '../types'
 
 const MARGIN_PX = 16
@@ -182,10 +182,10 @@ function buildBarcodeDrawable(element: PrintJobElement & { type: 'barcode' }, co
   const symbology = element.symbology ?? 'code128'
   const moduleWidthPx = element.width ?? BARCODE_DEFAULT_MODULE_PX
   const heightPx = element.height ?? BARCODE_DEFAULT_HEIGHT_PX
-  const barcode = buildRealBarcode(symbology, element.value, moduleWidthPx, heightPx)
-  return barcode
-    ? realBarcodeDrawable(barcode, element.align ?? 'center', contentWidthPx)
-    : placeholderDrawable(symbology, element.value, heightPx, element.align ?? 'center')
+  const result = buildRealBarcode(symbology, element.value, moduleWidthPx, heightPx)
+  return 'drawing' in result
+    ? realBarcodeDrawable(result.drawing, element.align ?? 'center', contentWidthPx)
+    : placeholderDrawable(symbology, element.value, result.error, heightPx, element.align ?? 'center')
 }
 
 function buildQrDrawable(element: PrintJobElement & { type: 'qrcode' }): Drawable {
@@ -196,15 +196,15 @@ function buildQrDrawable(element: PrintJobElement & { type: 'qrcode' }): Drawabl
 /** Reuses realBarcodeDrawable()'s "too wide for paper" handling — PDF417 can overflow the paper just like a 1D barcode. */
 function buildPdf417Drawable(element: PrintJobElement & { type: 'pdf417' }, contentWidthPx: number): Drawable {
   const moduleScale = element.width ?? PDF417_DEFAULT_SCALE
-  const barcode = buildPdf417(element.value, moduleScale, {
+  const result = buildPdf417(element.value, moduleScale, {
     columns: element.columns,
     rows: element.rows,
     errorlevel: element.errorlevel,
     truncated: element.truncated,
   })
-  return barcode
-    ? realBarcodeDrawable(barcode, element.align ?? 'center', contentWidthPx)
-    : placeholderDrawable('pdf417', element.value, PDF417_DEFAULT_HEIGHT_PX, element.align ?? 'center')
+  return 'drawing' in result
+    ? realBarcodeDrawable(result.drawing, element.align ?? 'center', contentWidthPx)
+    : placeholderDrawable('pdf417', element.value, result.error, PDF417_DEFAULT_HEIGHT_PX, element.align ?? 'center')
 }
 
 function textDrawable(
@@ -259,10 +259,10 @@ function imageDrawable(dithered: DitheredImage, align: Alignment): Drawable {
 }
 
 /** 'itf'/'interleaved-2-of-5' matches the real encoder's own symbology aliases for ITF. */
-function buildRealBarcode(symbology: string, value: string, moduleWidthPx: number, heightPx: number): BarcodeDrawing | null {
+function buildRealBarcode(symbology: string, value: string, moduleWidthPx: number, heightPx: number): BarcodeBuildResult {
   if (symbology === 'code128') return buildCode128(value, moduleWidthPx, heightPx)
   if (symbology === 'itf' || symbology === 'interleaved-2-of-5') return buildItf(value, moduleWidthPx, heightPx)
-  return null
+  return { error: 'unsupported symbology' }
 }
 
 /** Draws a real barcode at its true computed size — if that's wider than the paper, it's left to
@@ -300,8 +300,14 @@ function qrDrawable(qr: QrCodeDrawing, align: Alignment): Drawable {
   }
 }
 
-/** Used for barcode symbologies other than 'code128', which we don't encode for real — see code128.ts. */
-function placeholderDrawable(symbology: string, value: string, heightPx: number, align: Alignment): Drawable {
+/**
+ * Shown whenever a real barcode/2D symbol couldn't be built — either the
+ * symbology is out of scope entirely, or it is supported but `value` was
+ * rejected by the real encoder (e.g. ITF given non-digit input). `reason`
+ * is the specific message for either case, surfaced directly rather than
+ * a single generic label, so the two situations aren't confused.
+ */
+function placeholderDrawable(symbology: string, value: string, reason: string, heightPx: number, align: Alignment): Drawable {
   const label = `[${symbology}] ${value}`
   return {
     heightPx,
@@ -316,7 +322,7 @@ function placeholderDrawable(symbology: string, value: string, heightPx: number,
 
       ctx.fillStyle = '#333'
       ctx.font = `12px ${FONT_FAMILY}`
-      ctx.fillText('not rendered — unsupported symbology', x + 4, y + heightPx / 2 - 14)
+      ctx.fillText(`not rendered — ${reason}`, x + 4, y + heightPx / 2 - 14)
       ctx.fillText(label, x + 4, y + heightPx / 2)
     },
   }

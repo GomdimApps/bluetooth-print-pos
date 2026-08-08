@@ -1,14 +1,15 @@
 import { toCanvas } from '@bwip-js/browser'
-import type { BarcodeDrawing } from './barcodeDrawing'
+import { errorMessage } from '../interfaces/printerErrors'
+import type { BarcodeBuildResult } from './barcodeDrawing'
 
 /**
- * Real PDF417 rendering, unlike Code128/ITF (src/Preview/code128.ts,
- * itf.ts): those are small, fixed, standardized tables safely hand-ported
- * and cross-checked against a second source. PDF417 needs text/byte/numeric
- * compaction, a ~2800-entry codeword table and Reed-Solomon error correction
- * over GF(929) — getting that right by hand with no way to physically
- * scan-test it here is real risk, so this wraps `@bwip-js/browser` (MIT,
- * years of production use against real 2D scanners) instead.
+ * Real PDF417 rendering, via `@bwip-js/browser` (MIT, years of production
+ * use against real 2D scanners). PDF417 needs text/byte/numeric
+ * compaction, a ~2800-entry codeword table and Reed-Solomon error
+ * correction over GF(929) — getting that right by hand with no way to
+ * physically scan-test it here is real risk, so this was never hand-ported
+ * the way Code128/ITF originally were (see code128.ts/itf.ts, which now
+ * also wrap this same dependency, added first for this file).
  *
  * Option names/defaults below were confirmed by reading the installed
  * package's actual runtime source (node_modules/@bwip-js/browser/dist/bwipp.mjs),
@@ -27,8 +28,8 @@ export interface Pdf417Options {
   truncated?: boolean
 }
 
-/** Builds a real PDF417 symbol ready to render, or null if `value` is empty (bwip-js throws on empty input). */
-export function buildPdf417(value: string, moduleScale: number, options: Pdf417Options): BarcodeDrawing | null {
+/** Builds a real PDF417 symbol ready to render, or the reason it failed (e.g. empty value — bwip-js throws on that). */
+export function buildPdf417(value: string, moduleScale: number, options: Pdf417Options): BarcodeBuildResult {
   const offscreen = document.createElement('canvas')
 
   try {
@@ -41,18 +42,20 @@ export function buildPdf417(value: string, moduleScale: number, options: Pdf417O
       ...(options.errorlevel !== undefined ? { eclevel: options.errorlevel } : {}),
       ...(options.truncated !== undefined ? { compact: options.truncated } : {}),
     })
-  } catch {
-    return null
+  } catch (error) {
+    return { error: errorMessage(error) }
   }
 
   const widthPx = offscreen.width
   const heightPx = offscreen.height
 
   return {
-    widthPx,
-    heightPx,
-    render(ctx, x, y) {
-      ctx.drawImage(offscreen, x, y)
+    drawing: {
+      widthPx,
+      heightPx,
+      render(ctx, x, y) {
+        ctx.drawImage(offscreen, x, y)
+      },
     },
   }
 }

@@ -68,8 +68,8 @@ src/Images/image.ts             # loadImageFromSource/prepareImageForEncoder/app
 src/Preview/
   PreviewRenderer.ts            # PrintJob -> <canvas>, mirrors ReceiptBuilder.ts's element switch
   imageDither.ts                # reuses Images/image.ts sizing + canvas-dither for pixel-identical preview images
-  code128.ts                    # real Code128 Subset B encoder + canvas renderer
-  itf.ts                        # real ITF (Interleaved 2 of 5) encoder + canvas renderer
+  code128.ts                    # wraps @bwip-js/browser for a real, scannable Code128
+  itf.ts                        # wraps @bwip-js/browser for a real, scannable ITF (Interleaved 2 of 5)
   qrcode.ts                     # wraps qrcode-generator for a real, scannable QR
   pdf417.ts                     # wraps @bwip-js/browser for a real, scannable PDF417
   barcodeDrawing.ts             # shared BarcodeDrawing interface (code128.ts + itf.ts + pdf417.ts)
@@ -121,11 +121,13 @@ These cost real debugging time. Don't reintroduce them.
    matrix/bars themselves** — they just emit the ESC/POS command bytes and
    let the *printer's firmware* draw the symbol. There is nothing to reuse
    from `@point-of-sale/receipt-printer-encoder` for the preview's real
-   barcode/QR/PDF417 rendering — `Preview/code128.ts`, `Preview/itf.ts`,
-   `Preview/qrcode.ts`, `Preview/pdf417.ts` are fully independent
-   implementations, and print-side correctness never depends on any of
-   them: a bug in `pdf417.ts`'s preview rendering cannot break a real
-   print, and vice versa.
+   barcode/QR/PDF417 rendering. `Preview/code128.ts`, `Preview/itf.ts` and
+   `Preview/pdf417.ts` are thin `@bwip-js/browser` wrappers (`bcid:
+   'code128'`/`'interleaved2of5'`/`'pdf417'`); `Preview/qrcode.ts` is the
+   one independent implementation, via `qrcode-generator`. Either way,
+   print-side correctness never depends on any of them: a bug in any
+   `Preview/*.ts` renderer cannot break a real print, and vice versa —
+   `ReceiptBuilder.ts` only ever calls the real encoder's own methods.
 
 5. **QR `size` option is dots-per-module directly** (encoder default: `6`),
    not a multiplier. `Preview/PreviewRenderer.ts`'s `QRCODE_DEFAULT_CELL_PX`
@@ -241,19 +243,24 @@ These cost real debugging time. Don't reintroduce them.
   path still sends it to the encoder as-is (works if the encoder/printer
   supports that symbology, just isn't preview-visualized). `pdf417` is a
   separate `PrintJobElement` type (its own encoder method, not a `barcode`
-  symbology) and always gets a real preview, via `@bwip-js/browser`.
-- `@bwip-js/browser` (MIT) was added specifically for PDF417 preview
-  rendering: PDF417 needs compaction modes, a ~2800-entry codeword table
-  and Reed-Solomon error correction over GF(929), which — unlike
-  Code128/ITF's small fixed tables — isn't safely hand-portable here with
-  no way to physically scan-test the result. Deliberate trade-off, made
-  explicitly: a small, newer, unproven npm package (matrix output, same
-  pattern as `qrcode-generator`) was passed over for this actively
-  maintained, years-in-production library instead — at a real, measured
-  cost: it bundles its full 100+-symbology engine (only `pdf417` is used),
-  which took the standalone UMD bundle from ~120KB to **~1.06MB**. Preview
-  correctness for PDF417 depends entirely on this dependency; print-side
-  correctness does not (see gotcha #4).
+  symbology) and always gets a real preview.
+- `@bwip-js/browser` (MIT) was added for PDF417 preview rendering — PDF417
+  needs compaction modes, a ~2800-entry codeword table and Reed-Solomon
+  error correction over GF(929), not safely hand-portable here with no way
+  to physically scan-test the result — and now also backs `code128.ts` and
+  `itf.ts`'s preview rendering (swapped in afterwards: same dependency was
+  already fully bundled, so reusing it for those two removed real
+  hand-ported code for zero extra bundle cost, and Code128 preview support
+  actually got *more* correct doing so — bwip-js auto-selects Subsets
+  A/B/C per spec, the hand-rolled version only ever did Subset B). A small,
+  newer, unproven npm package (matrix output, same pattern as
+  `qrcode-generator`) was passed over for PDF417 in favor of this actively
+  maintained, years-in-production library — at a real, measured cost: it
+  bundles its full 100+-symbology engine (only `code128`/`interleaved2of5`/
+  `pdf417` are used), which took the standalone UMD bundle from ~120KB to
+  **~1.06MB**. That cost is now justified across three symbologies, not
+  one. Preview correctness for all three depends entirely on this
+  dependency; print-side correctness does not (see gotcha #4).
 - `PaperWidth` is `'58mm' | '80mm' | '112mm'`. `'80mm'` values are
   cross-checked against real hardware constants (576 dots); `'112mm'` is an
   estimate, not yet hardware-verified.
