@@ -1,5 +1,5 @@
 import ReceiptPrinterEncoder from '@point-of-sale/receipt-printer-encoder'
-import { resolveColumns } from '../../config'
+import { resolveColumns, resolveImageMaxWidth } from '../../config'
 import { applyTextElement } from '../Text/sample'
 import { applyImageElement } from '../Images/image'
 import type { PrintJob, PrinterWrapperConfig } from '../types'
@@ -18,13 +18,19 @@ const BARCODE_DEFAULT_HEIGHT = 64
 export async function buildReceiptBytes(job: PrintJob, defaults: PrinterWrapperConfig): Promise<Uint8Array> {
   const stripAccentsEnabled = job.stripAccents ?? defaults.stripAccents
 
+  // job.paperWidth scales both columns and the image size ceiling, so a
+  // wider paperWidth actually gives images more room — not just text.
+  const columns = resolveColumns(job.columns, job.paperWidth, defaults.columns)
+  const imageMaxWidth = resolveImageMaxWidth(undefined, job.paperWidth, defaults.imageMaxWidth)
+  const jobDefaults: PrinterWrapperConfig = { ...defaults, columns, imageMaxWidth }
+
   // Only included when set — the encoder overwrites its own defaults if
   // these keys are present at all, even with value `undefined`.
   const codepageMapping = job.codepageMapping ?? defaults.codepageMapping
   const printerModel = job.printerModel ?? defaults.printerModel
 
   const encoder = new ReceiptPrinterEncoder({
-    columns: resolveColumns(job.columns, job.paperWidth, defaults.columns),
+    columns,
     language: job.language ?? defaults.language,
     ...(codepageMapping !== undefined ? { codepageMapping } : {}),
     ...(printerModel !== undefined ? { printerModel } : {}),
@@ -49,7 +55,7 @@ export async function buildReceiptBytes(job: PrintJob, defaults: PrinterWrapperC
 
       case 'image':
         // eslint-disable-next-line no-await-in-loop -- printing is inherently sequential, one image at a time.
-        await applyImageElement(encoder, element, defaults)
+        await applyImageElement(encoder, element, jobDefaults)
         break
 
       case 'barcode':

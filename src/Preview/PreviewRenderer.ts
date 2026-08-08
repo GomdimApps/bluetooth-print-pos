@@ -1,4 +1,4 @@
-import { resolveColumns } from '../../config'
+import { resolveColumns, resolveImageMaxWidth } from '../../config'
 import { stripAccents } from '../Text/sample'
 import { wrapText } from './textLayout'
 import { prepareDitheredImage, type DitheredImage } from './imageDither'
@@ -38,7 +38,9 @@ export async function renderPreviewCanvas(job: PrintJob, defaults: PrinterWrappe
   const stripAccentsEnabled = job.stripAccents ?? defaults.stripAccents
   // Images are already sized against imageMaxWidth (in px/dots); reusing it as the
   // paper's content width keeps text, images, barcodes and rules visually aligned.
-  const contentWidthPx = defaults.imageMaxWidth
+  // job.paperWidth scales this too, not just columns — a wider paper actually
+  // widens the canvas and the barcode "too wide" threshold.
+  const contentWidthPx = resolveImageMaxWidth(undefined, job.paperWidth, defaults.imageMaxWidth)
 
   const measureCtx = document.createElement('canvas').getContext('2d')
   if (!measureCtx) throw new Error('Canvas 2D is not supported in this browser.')
@@ -77,7 +79,7 @@ export async function renderPreviewCanvas(job: PrintJob, defaults: PrinterWrappe
       case 'image': {
         // eslint-disable-next-line no-await-in-loop -- preview mirrors the sequential real print path.
         const dithered = await prepareDitheredImage(element.source, {
-          maxWidth: element.maxWidth ?? defaults.imageMaxWidth,
+          maxWidth: element.maxWidth ?? contentWidthPx,
           minWidth: element.minWidth ?? defaults.imageMinWidth,
           minHeight: element.minHeight ?? defaults.imageMinHeight,
           threshold: element.threshold ?? defaults.imageThreshold,

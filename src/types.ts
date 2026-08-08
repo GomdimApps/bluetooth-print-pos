@@ -6,7 +6,7 @@
 
 export type PrinterLanguage = 'esc-pos' | 'star-prnt' | 'star-line'
 
-/** Friendly paper-size shorthand, translated into a `columns` count. See config.ts's PAPER_WIDTH_COLUMNS. */
+/** Friendly paper-size shorthand, translated into `columns`/`imageMaxWidth`. See config.ts's PAPER_WIDTH_SPECS. */
 export type PaperWidth = '58mm' | '80mm' | '112mm'
 
 export type Alignment = 'left' | 'center' | 'right'

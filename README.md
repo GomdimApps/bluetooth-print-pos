@@ -163,7 +163,7 @@ constructor's):
 
 ```ts
 const printer = new PrinterWrapper({
-  paperWidth: '80mm',       // '58mm' | '80mm' | '112mm' — shorthand for `columns`, ignored if `columns` is also set
+  paperWidth: '80mm',       // '58mm' | '80mm' | '112mm' — shorthand for `columns` AND the image/barcode width ceiling
   language: 'star-prnt',    // 'esc-pos' | 'star-prnt' | 'star-line', default 'esc-pos'
   codepageMapping: 'xprinter', // for non-standard clone printers; forwarded as-is to ReceiptPrinterEncoder
   printerModel: 'epson-tm-t88vi', // lets ReceiptPrinterEncoder auto-configure known-model defaults
