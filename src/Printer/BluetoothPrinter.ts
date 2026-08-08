@@ -1,5 +1,7 @@
 import WebBluetoothReceiptPrinter from '@point-of-sale/webbluetooth-receipt-printer'
-import type { PrinterError, PrinterInfo } from '../types'
+import type { PrinterInfo } from '../types'
+import type { BluetoothTransport } from './BluetoothTransport'
+import { normalizeConnectError, normalizePrintError, toPrinterError } from './printerErrors'
 
 /** true if the current browser exposes the Web Bluetooth API. */
 export function isBluetoothSupported(): boolean {
@@ -7,12 +9,13 @@ export function isBluetoothSupported(): boolean {
 }
 
 /**
- * Thin adapter over WebBluetoothReceiptPrinter: normalizes native errors
- * (SecurityError for a missing gesture, device picker cancellation, etc.)
- * into the wrapper's error codes, and translates the native lib's
- * `connected` event into the wrapper's public `PrinterInfo`.
+ * Default Bluetooth transport: a thin adapter over WebBluetoothReceiptPrinter.
+ * It restricts the device picker to a small set of known printer profiles
+ * (via requestDevice({ filters })), which keeps the picker clean but means
+ * printers outside that list never show up — see CompatBluetoothPrinter.ts
+ * for a broader, opt-in alternative.
  */
-export class BluetoothPrinter {
+export class BluetoothPrinter implements BluetoothTransport {
   private native: WebBluetoothReceiptPrinter | null = null
   private info: PrinterInfo | null = null
 
@@ -69,32 +72,7 @@ export class BluetoothPrinter {
     try {
       await this.native.print(bytes)
     } catch (error) {
-      throw toPrinterError('print-failed', errorMessage(error))
+      throw normalizePrintError(error)
     }
   }
-}
-
-function normalizeConnectError(error: unknown): PrinterError {
-  const name = (error as { name?: string })?.name
-
-  // requestDevice() throws SecurityError when connect() wasn't called from
-  // a user gesture (e.g. triggered automatically on load).
-  if (name === 'SecurityError') {
-    return toPrinterError('user-gesture-required', 'connect() must be called from a user click.')
-  }
-
-  // User closed the Bluetooth device picker without choosing one.
-  if (name === 'NotFoundError') {
-    return toPrinterError('connect-cancelled', 'Connection cancelled by the user.')
-  }
-
-  return toPrinterError('connect-failed', errorMessage(error))
-}
-
-function toPrinterError(code: PrinterError['code'], message: string): PrinterError {
-  return { code, message }
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }

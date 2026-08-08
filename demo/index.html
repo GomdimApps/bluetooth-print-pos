@@ -36,8 +36,14 @@
 <fieldset>
   <legend>Connection</legend>
   <button id="connectBtn">Connect</button>
+  <button id="connectCompatBtn">Connect (compatibility mode)</button>
   <button id="disconnectBtn" disabled>Disconnect</button>
   <button id="testPrintBtn" disabled>Test Print</button>
+  <p class="note">
+    Compatibility mode lists every nearby Bluetooth device (not just recognized
+    printers) and checks for a known ESC/POS service after connecting — try it
+    when a printer doesn't show up, or doesn't connect, with the plain Connect button.
+  </p>
   <div>Status: <span id="status">idle</span></div>
 </fieldset>
 
@@ -72,6 +78,7 @@
   const statusEl = document.getElementById('status')
   const logEl = document.getElementById('log')
   const connectBtn = document.getElementById('connectBtn')
+  const connectCompatBtn = document.getElementById('connectCompatBtn')
   const disconnectBtn = document.getElementById('disconnectBtn')
   const printBtn = document.getElementById('printBtn')
   const testPrintBtn = document.getElementById('testPrintBtn')
@@ -92,6 +99,7 @@
     : 'Web Bluetooth NOT supported in this browser — use Chrome or Edge (desktop or Android).'
   banner.className = supported ? 'ok' : 'fail'
   connectBtn.disabled = !supported
+  connectCompatBtn.disabled = !supported
 
   const printer = new PrinterWrapper()
 
@@ -105,12 +113,22 @@
     printBtn.disabled = !connected
     testPrintBtn.disabled = !connected
     connectBtn.disabled = connected || !supported
+    connectCompatBtn.disabled = connected || !supported
   })
 
   connectBtn.onclick = async () => {
     try {
       const info = await printer.connect()
       log(`connected to ${info.name} (${info.language})`)
+    } catch (error) {
+      log(`failed to connect: ${error.message}`)
+    }
+  }
+
+  connectCompatBtn.onclick = async () => {
+    try {
+      const info = await printer.connect({ compat: true })
+      log(`connected (compatibility mode) to ${info.name} (${info.language})`)
     } catch (error) {
       log(`failed to connect: ${error.message}`)
     }

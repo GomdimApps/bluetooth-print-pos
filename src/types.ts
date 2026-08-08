@@ -6,6 +6,9 @@
 
 export type PrinterLanguage = 'esc-pos' | 'star-prnt' | 'star-line'
 
+/** Friendly paper-size shorthand, translated into a `columns` count. See config.ts's PAPER_WIDTH_COLUMNS. */
+export type PaperWidth = '58mm' | '80mm' | '112mm'
+
 export type Alignment = 'left' | 'center' | 'right'
 
 export interface PrinterWrapperConfig {
@@ -13,6 +16,10 @@ export interface PrinterWrapperConfig {
   columns: number
   /** Protocol used to build the commands. The printer reports the real one on the connection event. */
   language: PrinterLanguage
+  /** Codepage table of the target printer/clone (e.g. 'epson', 'star', 'zjiang', 'xprinter'). Passed straight through to ReceiptPrinterEncoder. */
+  codepageMapping?: unknown
+  /** Known printer model (e.g. 'epson-tm-t88vi') so ReceiptPrinterEncoder can auto-configure sensible defaults for it. */
+  printerModel?: string
   /** Default threshold (0-255) for image dithering. */
   imageThreshold: number
   /** Maximum width, in pixels, to resize images to before printing. */
@@ -25,11 +32,19 @@ export interface PrinterWrapperConfig {
   stripAccents: boolean
 }
 
+/**
+ * Constructor input for PrinterWrapper: same as PrinterWrapperConfig, plus
+ * `paperWidth` as a convenience alternative to `columns`. `paperWidth` is
+ * never stored on the resolved config — it's translated into `columns`
+ * immediately by config.ts's resolveConfig()/resolveColumns().
+ */
+export type PrinterWrapperConfigInput = Partial<PrinterWrapperConfig> & { paperWidth?: PaperWidth }
+
 export interface PrinterInfo {
   type: 'bluetooth'
   name: string
   id: string
-  language: 'esc-pos' | 'star-prnt'
+  language: 'esc-pos' | 'star-prnt' | 'star-line'
   codepageMapping?: unknown
 }
 
@@ -105,7 +120,11 @@ export type PrintJobElement =
 
 export interface PrintJob {
   columns?: number
+  /** Convenience alternative to `columns` — see PaperWidth. `columns` wins if both are given. */
+  paperWidth?: PaperWidth
   language?: PrinterLanguage
+  codepageMapping?: unknown
+  printerModel?: string
   /** Paper cut at the end. `false` to skip cutting. Default: 'full'. */
   cut?: 'full' | 'partial' | false
   stripAccents?: boolean

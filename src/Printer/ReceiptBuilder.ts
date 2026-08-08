@@ -1,4 +1,5 @@
 import ReceiptPrinterEncoder from '@point-of-sale/receipt-printer-encoder'
+import { resolveColumns } from '../../config'
 import { applyTextElement } from '../Text/sample'
 import { applyImageElement } from '../Images/image'
 import type { PrintJob, PrinterWrapperConfig } from '../types'
@@ -13,8 +14,10 @@ export async function buildReceiptBytes(job: PrintJob, defaults: PrinterWrapperC
   const stripAccentsEnabled = job.stripAccents ?? defaults.stripAccents
 
   const encoder = new ReceiptPrinterEncoder({
-    columns: job.columns ?? defaults.columns,
+    columns: resolveColumns(job.columns, job.paperWidth, defaults.columns),
     language: job.language ?? defaults.language,
+    codepageMapping: job.codepageMapping ?? defaults.codepageMapping,
+    printerModel: job.printerModel ?? defaults.printerModel,
   })
 
   encoder.initialize()

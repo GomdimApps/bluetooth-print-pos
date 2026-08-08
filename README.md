@@ -129,11 +129,11 @@ library, two different bundles depending on how you pull it in.
 class PrinterWrapper {
   static isSupported(): boolean
 
-  constructor(config?: Partial<PrinterWrapperConfig>)
+  constructor(config?: PrinterWrapperConfigInput)
 
   onStatusChange(cb: (event: PrinterStatusEvent) => void): () => void
 
-  connect(): Promise<PrinterInfo>     // must be called from a user click
+  connect(options?: { compat?: boolean }): Promise<PrinterInfo>     // must be called from a user click
   disconnect(): Promise<void>
   isConnected(): boolean
   getPrinterInfo(): PrinterInfo | null
@@ -149,6 +149,45 @@ for the full shape of each one.
 
 Errors arrive as a rejected Promise with a `.code`:
 `unsupported | user-gesture-required | connect-cancelled | connect-failed | not-connected | busy | print-failed`.
+
+### Printer type and paper size
+
+Paper width, protocol and codepage can all be injected — either once at
+construction time, or per print job (a per-job value always overrides the
+constructor's):
+
+```ts
+const printer = new PrinterWrapper({
+  paperWidth: '80mm',       // '58mm' | '80mm' | '112mm' — shorthand for `columns`, ignored if `columns` is also set
+  language: 'star-prnt',    // 'esc-pos' | 'star-prnt' | 'star-line', default 'esc-pos'
+  codepageMapping: 'xprinter', // for non-standard clone printers; forwarded as-is to ReceiptPrinterEncoder
+  printerModel: 'epson-tm-t88vi', // lets ReceiptPrinterEncoder auto-configure known-model defaults
+})
+
+// or per job:
+await printer.printReceipt({ paperWidth: '58mm', content: [...] })
+```
+
+Note this is independent from `connect()`/`connect({ compat: true })`: the
+`language`/`codepageMapping` a Bluetooth profile reports on `PrinterInfo`
+after connecting is informational only — it isn't applied to
+`printReceipt()` automatically, so set it explicitly if you need it.
+
+### Compatibility mode
+
+`connect()` normally restricts the Bluetooth device picker to a small set
+of recognized printer profiles, so unrecognized models sometimes never show
+up as an option at all. Pass `{ compat: true }` to widen it: the picker
+lists every nearby Bluetooth device, and the printer profile is matched
+*after* connecting instead.
+
+```ts
+await printer.connect({ compat: true })
+```
+
+Try this when a printer doesn't show up, or doesn't connect, with the plain
+`connect()`. It reaches more hardware (including generic FF00-profile and
+PrinterBT/innoPrint-based printers) at the cost of a noisier device picker.
 
 ## Building from source
 

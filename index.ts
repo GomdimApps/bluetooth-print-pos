@@ -11,8 +11,10 @@
  *   </script>
  */
 export { PrinterWrapper as default } from './src/Printer/PrinterWrapper'
+export type { ConnectOptions } from './src/Printer/PrinterWrapper'
 export type {
   PrinterWrapperConfig,
+  PrinterWrapperConfigInput,
   PrinterInfo,
   PrinterStatusEvent,
   PrinterStatusName,
@@ -23,4 +25,5 @@ export type {
   ImageSource,
   Alignment,
   PrinterLanguage,
+  PaperWidth,
 } from './src/types'

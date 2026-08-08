@@ -77,7 +77,7 @@ declare module '@point-of-sale/webbluetooth-receipt-printer' {
     type: 'bluetooth'
     name: string
     id: string
-    language: 'esc-pos' | 'star-prnt'
+    language: 'esc-pos' | 'star-prnt' | 'star-line'
     codepageMapping?: unknown
   }
 
