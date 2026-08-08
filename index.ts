@@ -26,4 +26,5 @@ export type {
   Alignment,
   PrinterLanguage,
   PaperWidth,
+  PrintPreview,
 } from './src/types'

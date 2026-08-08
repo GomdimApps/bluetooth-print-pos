@@ -13,7 +13,9 @@ ecosystem:
 (talks to the printer over Web Bluetooth).
 
 Runs **entirely in the browser, with no Node at runtime** — Node is only
-used at build time to produce the artifacts.
+used at build time to produce the artifacts. It also includes a
+[print preview](#print-preview) that renders exactly what would be printed
+— text, images, barcodes, QR codes — as an image, with no printer needed.
 
 There are two ways to use it, covered in detail below:
 
@@ -140,6 +142,9 @@ class PrinterWrapper {
 
   printReceipt(job: PrintJob): Promise<void>
   printRaw(bytes: Uint8Array | number[]): Promise<void>
+
+  renderPreview(job: PrintJob): Promise<PrintPreview>                              // no printer/connection needed
+  static renderPreview(job: PrintJob, config?: PrinterWrapperConfigInput): Promise<PrintPreview>
 }
 ```
 
@@ -188,6 +193,62 @@ await printer.connect({ compat: true })
 Try this when a printer doesn't show up, or doesn't connect, with the plain
 `connect()`. It reaches more hardware (including generic FF00-profile and
 PrinterBT/innoPrint-based printers) at the cost of a noisier device picker.
+
+## Print preview
+
+`renderPreview(job)` renders a `PrintJob` to a canvas that simulates
+*exactly* what would come out of the printer — same text wrapping, same
+image resize + dithering (byte-identical to the real print, via the same
+`canvas-dither` the encoder uses internally), real scannable Code128
+barcodes and QR codes — without a printer, without connecting, and without
+even a browser that supports Web Bluetooth. Use it to catch layout/content
+mistakes (cut-off text, distorted images, wrong paper width, bad barcode
+data) before ever touching hardware.
+
+```ts
+const preview = await printer.renderPreview(job)
+// preview: { canvas: HTMLCanvasElement, dataUrl: string, width: number, height: number }
+```
+
+Also available as a static method, so it works with zero setup — no
+instance, no connection:
+
+```ts
+const preview = await PrinterWrapper.renderPreview(job, { paperWidth: '80mm' })
+```
+
+`preview.dataUrl` is a `data:image/png` string — drop it straight into an
+`<img>`, in plain HTML, React or Vue:
+
+```html
+<!-- plain HTML -->
+<img id="previewImg" />
+<script>
+  const preview = await printer.renderPreview(job)
+  document.getElementById('previewImg').src = preview.dataUrl
+</script>
+```
+
+```jsx
+// React
+const [preview, setPreview] = useState(null)
+useEffect(() => { printer.renderPreview(job).then(setPreview) }, [job])
+return preview && <img src={preview.dataUrl} alt="Receipt preview" />
+```
+
+```vue
+<!-- Vue -->
+<img v-if="preview" :src="preview.dataUrl" />
+```
+```ts
+const preview = ref(null)
+onMounted(async () => { preview.value = await printer.renderPreview(job) })
+```
+
+**Scope note**: real barcode rendering only covers `symbology: 'code128'`
+(the default) — other symbologies (upc/ean13/code39/etc.) render as a
+labeled placeholder box instead of a real symbol, since implementing every
+ESC/POS symbology was out of scope for this pass.
 
 ## Building from source
 

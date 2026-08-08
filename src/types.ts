@@ -130,3 +130,17 @@ export interface PrintJob {
   stripAccents?: boolean
   content: PrintJobElement[]
 }
+
+/**
+ * Result of renderPreview(): a canvas simulating exactly what a PrintJob
+ * would look like on paper — same column wrapping, same image resize +
+ * dithering, real scannable barcode/QR — built without ever touching a
+ * printer. `dataUrl` drops straight into an <img src>, in plain HTML,
+ * React (`<img src={preview.dataUrl} />`) or Vue (`:src="preview.dataUrl"`).
+ */
+export interface PrintPreview {
+  canvas: HTMLCanvasElement
+  dataUrl: string
+  width: number
+  height: number
+}

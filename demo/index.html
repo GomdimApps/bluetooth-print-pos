@@ -64,7 +64,23 @@
   <label for="imageInput">Image (optional — becomes base64/File automatically)</label>
   <input type="file" id="imageInput" accept="image/*" />
 
+  <label for="barcodeInput">Barcode value (Code128, optional)</label>
+  <input type="text" id="barcodeInput" placeholder="e.g. 123456789012" />
+
+  <label for="qrInput">QR code content (optional)</label>
+  <input type="text" id="qrInput" placeholder="e.g. https://example.com" />
+
   <button id="printBtn" disabled>Print</button>
+  <button id="previewBtn">Preview</button>
+  <p class="note">
+    Preview renders exactly what would be printed — same text wrapping, same image
+    dithering, real scannable Code128/QR — with no printer and no Bluetooth needed at all.
+  </p>
+</fieldset>
+
+<fieldset>
+  <legend>Preview</legend>
+  <img id="previewImg" alt="Receipt preview" style="max-width: 100%; border: 1px solid #8884; display: none;" />
 </fieldset>
 
 <fieldset>
@@ -86,6 +102,10 @@
   const alignSelect = document.getElementById('alignSelect')
   const boldCheck = document.getElementById('boldCheck')
   const imageInput = document.getElementById('imageInput')
+  const barcodeInput = document.getElementById('barcodeInput')
+  const qrInput = document.getElementById('qrInput')
+  const previewBtn = document.getElementById('previewBtn')
+  const previewImg = document.getElementById('previewImg')
 
   function log(message) {
     const time = new Date().toLocaleTimeString()
@@ -163,27 +183,53 @@
     }
   }
 
-  printBtn.onclick = async () => {
+  function buildJobFromForm() {
     const lines = textInput.value.split('\n').map((l) => l.trim()).filter(Boolean)
     const align = alignSelect.value
     const bold = boldCheck.checked
     const file = imageInput.files[0]
+    const barcodeValue = barcodeInput.value.trim()
+    const qrValue = qrInput.value.trim()
 
     const content = []
     if (file) content.push({ type: 'image', source: file, align: 'center' })
     for (const line of lines) content.push({ type: 'text', value: line, align, bold })
+    if (barcodeValue) content.push({ type: 'barcode', value: barcodeValue, symbology: 'code128' })
+    if (qrValue) content.push({ type: 'qrcode', value: qrValue })
     content.push({ type: 'newline', lines: 2 })
 
-    if (content.length === 0) {
-      log('nothing to print — fill in the text or choose an image')
+    return content.length > 0 ? { content, cut: 'full' } : null
+  }
+
+  printBtn.onclick = async () => {
+    const job = buildJobFromForm()
+    if (!job) {
+      log('nothing to print — fill in the text, image, barcode or QR field')
       return
     }
 
     try {
-      await printer.printReceipt({ content, cut: 'full' })
+      await printer.printReceipt(job)
       log('receipt sent')
     } catch (error) {
       log(`failed to print: ${error.message}`)
+    }
+  }
+
+  previewBtn.onclick = async () => {
+    const job = buildJobFromForm()
+    if (!job) {
+      log('nothing to preview — fill in the text, image, barcode or QR field')
+      return
+    }
+
+    try {
+      const preview = await printer.renderPreview(job)
+      previewImg.src = preview.dataUrl
+      previewImg.style.display = 'block'
+      log(`preview rendered (${preview.width}x${preview.height})`)
+    } catch (error) {
+      log(`failed to render preview: ${error.message}`)
     }
   }
 </script>
