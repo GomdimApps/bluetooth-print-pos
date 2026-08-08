@@ -1,8 +1,13 @@
 import ReceiptPrinterEncoder from '@point-of-sale/receipt-printer-encoder'
-import { resolveColumns } from '../../config'
+import { resolveColumns, resolveImageMaxWidth } from '../../config'
 import { applyTextElement } from '../Text/sample'
 import { applyImageElement } from '../Images/image'
 import type { PrintJob, PrinterWrapperConfig } from '../types'
+
+// Barcode height/width defaults (encoder has none of its own). Matches
+// PreviewRenderer.ts's defaults so preview and real print line up.
+const BARCODE_DEFAULT_MODULE_WIDTH = 2
+const BARCODE_DEFAULT_HEIGHT = 64
 
 /**
  * Walks `job.content` in order and builds the ESC/POS/StarPRNT bytes ready
@@ -13,11 +18,22 @@ import type { PrintJob, PrinterWrapperConfig } from '../types'
 export async function buildReceiptBytes(job: PrintJob, defaults: PrinterWrapperConfig): Promise<Uint8Array> {
   const stripAccentsEnabled = job.stripAccents ?? defaults.stripAccents
 
+  // job.paperWidth scales both columns and the image size ceiling, so a
+  // wider paperWidth actually gives images more room — not just text.
+  const columns = resolveColumns(job.columns, job.paperWidth, defaults.columns)
+  const imageMaxWidth = resolveImageMaxWidth(undefined, job.paperWidth, defaults.imageMaxWidth)
+  const jobDefaults: PrinterWrapperConfig = { ...defaults, columns, imageMaxWidth }
+
+  // Only included when set — the encoder overwrites its own defaults if
+  // these keys are present at all, even with value `undefined`.
+  const codepageMapping = job.codepageMapping ?? defaults.codepageMapping
+  const printerModel = job.printerModel ?? defaults.printerModel
+
   const encoder = new ReceiptPrinterEncoder({
-    columns: resolveColumns(job.columns, job.paperWidth, defaults.columns),
+    columns,
     language: job.language ?? defaults.language,
-    codepageMapping: job.codepageMapping ?? defaults.codepageMapping,
-    printerModel: job.printerModel ?? defaults.printerModel,
+    ...(codepageMapping !== undefined ? { codepageMapping } : {}),
+    ...(printerModel !== undefined ? { printerModel } : {}),
   })
 
   encoder.initialize()
@@ -25,8 +41,8 @@ export async function buildReceiptBytes(job: PrintJob, defaults: PrinterWrapperC
   for (const element of job.content) {
     switch (element.type) {
       case 'text':
-        applyTextElement(encoder, element, stripAccentsEnabled)
-        encoder.newline()
+        // Emits its own newline(s), one per wrapped line — no extra newline() here.
+        applyTextElement(encoder, element, stripAccentsEnabled, columns)
         break
 
       case 'newline':
@@ -39,21 +55,24 @@ export async function buildReceiptBytes(job: PrintJob, defaults: PrinterWrapperC
 
       case 'image':
         // eslint-disable-next-line no-await-in-loop -- printing is inherently sequential, one image at a time.
-        await applyImageElement(encoder, element, defaults)
+        await applyImageElement(encoder, element, jobDefaults)
         break
 
       case 'barcode':
         encoder.align(element.align ?? 'center')
         encoder.barcode(element.value, element.symbology ?? 'code128', {
-          height: element.height,
-          width: element.width,
+          height: element.height ?? BARCODE_DEFAULT_HEIGHT,
+          width: element.width ?? BARCODE_DEFAULT_MODULE_WIDTH,
         })
         break
 
-      case 'qrcode':
+      case 'qrcode': {
+        // Same undefined-key hazard as codepageMapping/printerModel — omit when not set.
         encoder.align(element.align ?? 'center')
-        encoder.qrcode(element.value, { size: element.size })
+        const qrOptions = element.size !== undefined ? { size: element.size } : {}
+        encoder.qrcode(element.value, qrOptions)
         break
+      }
 
       default: {
         const exhaustiveCheck: never = element

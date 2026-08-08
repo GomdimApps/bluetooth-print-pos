@@ -5,7 +5,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-COPY tsconfig.json webpack.config.js index.ts config.ts ./
+COPY tsconfig.json tsconfig.build.json webpack.config.js index.ts config.ts ./
 COPY src ./src
 
 RUN npm run build

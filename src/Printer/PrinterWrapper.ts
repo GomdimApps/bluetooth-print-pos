@@ -3,6 +3,7 @@ import { BluetoothPrinter, isBluetoothSupported } from './BluetoothPrinter'
 import { CompatBluetoothPrinter } from './CompatBluetoothPrinter'
 import { buildReceiptBytes } from './ReceiptBuilder'
 import { normalizePrintError } from './printerErrors'
+import { renderPreviewCanvas } from '../Preview/PreviewRenderer'
 import type { BluetoothTransport } from './BluetoothTransport'
 import type {
   PrinterError,
@@ -12,6 +13,7 @@ import type {
   PrinterWrapperConfig,
   PrinterWrapperConfigInput,
   PrintJob,
+  PrintPreview,
 } from '../types'
 
 type Unsubscribe = () => void
@@ -92,6 +94,24 @@ export class PrinterWrapper {
   async disconnect(): Promise<void> {
     await this.active?.disconnect()
     this.emit('disconnected')
+  }
+
+  /**
+   * Renders `job` to a canvas simulating exactly what would be printed —
+   * same column wrapping, same image resize/dithering, real scannable
+   * Code128/QR — without a printer. Never touches Bluetooth, so it works
+   * even in browsers without Web Bluetooth support. Uses this instance's
+   * configured defaults (paperWidth/codepageMapping/etc.), just like
+   * `printReceipt()`. `preview.dataUrl` drops straight into an `<img src>`
+   * in plain HTML, React or Vue.
+   */
+  renderPreview(job: PrintJob): Promise<PrintPreview> {
+    return renderPreviewCanvas(job, this.config)
+  }
+
+  /** Same as the instance method, but usable with zero setup — no instance or connection needed at all. */
+  static renderPreview(job: PrintJob, config?: PrinterWrapperConfigInput): Promise<PrintPreview> {
+    return renderPreviewCanvas(job, resolveConfig(config))
   }
 
   /** Builds the receipt from a JSON-serializable object and sends it to the printer. */

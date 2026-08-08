@@ -6,10 +6,13 @@
 
 export type PrinterLanguage = 'esc-pos' | 'star-prnt' | 'star-line'
 
-/** Friendly paper-size shorthand, translated into a `columns` count. See config.ts's PAPER_WIDTH_COLUMNS. */
+/** Friendly paper-size shorthand, translated into `columns`/`imageMaxWidth`. See config.ts's PAPER_WIDTH_SPECS. */
 export type PaperWidth = '58mm' | '80mm' | '112mm'
 
 export type Alignment = 'left' | 'center' | 'right'
+
+/** Text-only: stretches each line (except a paragraph's last) to fill the full column width. */
+export type TextAlignment = Alignment | 'justify'
 
 export interface PrinterWrapperConfig {
   /** Number of text columns the printer has (used for line wrapping and the test receipt). */
@@ -90,7 +93,7 @@ export type PrintJobElement =
   | {
       type: 'text'
       value: string
-      align?: Alignment
+      align?: TextAlignment
       bold?: boolean
       underline?: boolean
       /** width, or [width, height] (1-8), same as the encoder's size(). */
@@ -129,4 +132,18 @@ export interface PrintJob {
   cut?: 'full' | 'partial' | false
   stripAccents?: boolean
   content: PrintJobElement[]
+}
+
+/**
+ * Result of renderPreview(): a canvas simulating exactly what a PrintJob
+ * would look like on paper — same column wrapping, same image resize +
+ * dithering, real scannable barcode/QR — built without ever touching a
+ * printer. `dataUrl` drops straight into an <img src>, in plain HTML,
+ * React (`<img src={preview.dataUrl} />`) or Vue (`:src="preview.dataUrl"`).
+ */
+export interface PrintPreview {
+  canvas: HTMLCanvasElement
+  dataUrl: string
+  width: number
+  height: number
 }

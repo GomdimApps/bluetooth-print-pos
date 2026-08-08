@@ -49,6 +49,18 @@
 
 <fieldset>
   <legend>Receipt</legend>
+  <label for="paperWidthSelect">Paper width</label>
+  <select id="paperWidthSelect">
+    <option value="" selected>Default (58mm, 32 cols)</option>
+    <option value="58mm">58mm</option>
+    <option value="80mm">80mm</option>
+    <option value="112mm">112mm (~4in)</option>
+  </select>
+  <p class="note">
+    Scales both text wrapping and the image/barcode width ceiling — applies to
+    Print, Preview and Test Print below.
+  </p>
+
   <label for="textInput">Text (one line per row in the field)</label>
   <textarea id="textInput" placeholder="Line 1&#10;Line 2"></textarea>
 
@@ -57,6 +69,7 @@
     <option value="left" selected>Left</option>
     <option value="center">Center</option>
     <option value="right">Right</option>
+    <option value="justify">Justify</option>
   </select>
 
   <label><input type="checkbox" id="boldCheck" /> Bold</label>
@@ -64,7 +77,31 @@
   <label for="imageInput">Image (optional — becomes base64/File automatically)</label>
   <input type="file" id="imageInput" accept="image/*" />
 
+  <label for="barcodeInput">Barcode value (optional)</label>
+  <input type="text" id="barcodeInput" placeholder="e.g. 123456789012" />
+
+  <label for="barcodeSymbologySelect">Barcode symbology</label>
+  <select id="barcodeSymbologySelect">
+    <option value="code128" selected>Code128</option>
+    <option value="itf">ITF (Interleaved 2 of 5 — e.g. bank slips/boleto)</option>
+  </select>
+
+  <label for="qrInput">QR code content (optional)</label>
+  <input type="text" id="qrInput" placeholder="e.g. https://example.com" />
+
   <button id="printBtn" disabled>Print</button>
+  <button id="previewBtn">Preview</button>
+  <p class="note">
+    Preview renders exactly what would be printed — same text wrapping, same image
+    dithering, real scannable Code128/ITF/QR — with no printer and no Bluetooth needed
+    at all. If a barcode is too wide for the paper, the preview shows it clipped with a
+    red warning instead of finding out from the printer's own "wide error!" on real paper.
+  </p>
+</fieldset>
+
+<fieldset>
+  <legend>Preview</legend>
+  <img id="previewImg" alt="Receipt preview" style="max-width: 100%; border: 1px solid #8884; display: none;" />
 </fieldset>
 
 <fieldset>
@@ -82,10 +119,16 @@
   const disconnectBtn = document.getElementById('disconnectBtn')
   const printBtn = document.getElementById('printBtn')
   const testPrintBtn = document.getElementById('testPrintBtn')
+  const paperWidthSelect = document.getElementById('paperWidthSelect')
   const textInput = document.getElementById('textInput')
   const alignSelect = document.getElementById('alignSelect')
   const boldCheck = document.getElementById('boldCheck')
   const imageInput = document.getElementById('imageInput')
+  const barcodeInput = document.getElementById('barcodeInput')
+  const barcodeSymbologySelect = document.getElementById('barcodeSymbologySelect')
+  const qrInput = document.getElementById('qrInput')
+  const previewBtn = document.getElementById('previewBtn')
+  const previewImg = document.getElementById('previewImg')
 
   function log(message) {
     const time = new Date().toLocaleTimeString()
@@ -143,9 +186,14 @@
     return '1234567890 ABCDEFGHIJKLMNOPQRSTUVWXYZ'
   }
 
+  function selectedPaperWidth() {
+    return paperWidthSelect.value || undefined
+  }
+
   testPrintBtn.onclick = async () => {
     try {
       await printer.printReceipt({
+        paperWidth: selectedPaperWidth(),
         content: [
           { type: 'text', value: 'TEST PRINT', align: 'center', bold: true },
           { type: 'rule' },
@@ -163,27 +211,53 @@
     }
   }
 
-  printBtn.onclick = async () => {
+  function buildJobFromForm() {
     const lines = textInput.value.split('\n').map((l) => l.trim()).filter(Boolean)
     const align = alignSelect.value
     const bold = boldCheck.checked
     const file = imageInput.files[0]
+    const barcodeValue = barcodeInput.value.trim()
+    const qrValue = qrInput.value.trim()
 
     const content = []
     if (file) content.push({ type: 'image', source: file, align: 'center' })
     for (const line of lines) content.push({ type: 'text', value: line, align, bold })
+    if (barcodeValue) content.push({ type: 'barcode', value: barcodeValue, symbology: barcodeSymbologySelect.value })
+    if (qrValue) content.push({ type: 'qrcode', value: qrValue })
     content.push({ type: 'newline', lines: 2 })
 
-    if (content.length === 0) {
-      log('nothing to print — fill in the text or choose an image')
+    return content.length > 0 ? { paperWidth: selectedPaperWidth(), content, cut: 'full' } : null
+  }
+
+  printBtn.onclick = async () => {
+    const job = buildJobFromForm()
+    if (!job) {
+      log('nothing to print — fill in the text, image, barcode or QR field')
       return
     }
 
     try {
-      await printer.printReceipt({ content, cut: 'full' })
+      await printer.printReceipt(job)
       log('receipt sent')
     } catch (error) {
       log(`failed to print: ${error.message}`)
+    }
+  }
+
+  previewBtn.onclick = async () => {
+    const job = buildJobFromForm()
+    if (!job) {
+      log('nothing to preview — fill in the text, image, barcode or QR field')
+      return
+    }
+
+    try {
+      const preview = await printer.renderPreview(job)
+      previewImg.src = preview.dataUrl
+      previewImg.style.display = 'block'
+      log(`preview rendered (${preview.width}x${preview.height})`)
+    } catch (error) {
+      log(`failed to render preview: ${error.message}`)
     }
   }
 </script>
