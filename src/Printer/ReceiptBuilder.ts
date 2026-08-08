@@ -74,6 +74,19 @@ export async function buildReceiptBytes(job: PrintJob, defaults: PrinterWrapperC
         break
       }
 
+      case 'pdf417': {
+        encoder.align(element.align ?? 'center')
+        encoder.pdf417(element.value, {
+          ...(element.columns !== undefined ? { columns: element.columns } : {}),
+          ...(element.rows !== undefined ? { rows: element.rows } : {}),
+          ...(element.width !== undefined ? { width: element.width } : {}),
+          ...(element.height !== undefined ? { height: element.height } : {}),
+          ...(element.errorlevel !== undefined ? { errorlevel: element.errorlevel } : {}),
+          ...(element.truncated !== undefined ? { truncated: element.truncated } : {}),
+        })
+        break
+      }
+
       default: {
         const exhaustiveCheck: never = element
         throw new Error(`Unknown receipt element type: ${JSON.stringify(exhaustiveCheck)}`)

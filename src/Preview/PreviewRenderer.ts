@@ -6,6 +6,7 @@ import { prepareDitheredImage, type DitheredImage } from './imageDither'
 import { buildCode128 } from './code128'
 import { buildItf } from './itf'
 import { buildQrCode, type QrCodeDrawing } from './qrcode'
+import { buildPdf417 } from './pdf417'
 import type { BarcodeDrawing } from './barcodeDrawing'
 import type { Alignment, PrintJob, PrintJobElement, PrinterWrapperConfig, PrintPreview } from '../types'
 
@@ -16,6 +17,8 @@ const CUT_HEIGHT_PX = 32
 const BARCODE_DEFAULT_MODULE_PX = 2
 const BARCODE_DEFAULT_HEIGHT_PX = 64
 const QRCODE_DEFAULT_CELL_PX = 6 // matches ReceiptPrinterEncoder.qrcode()'s own default `size`
+const PDF417_DEFAULT_SCALE = 3
+const PDF417_DEFAULT_HEIGHT_PX = 64 // only used for the placeholder shown when bwip-js rejects the value (e.g. empty)
 const TOO_WIDE_LABEL_HEIGHT_PX = 16
 const BLOCK_GAP_PX = 6
 const BACKGROUND = '#fff'
@@ -77,6 +80,10 @@ export async function renderPreviewCanvas(job: PrintJob, defaults: PrinterWrappe
 
       case 'qrcode':
         drawables.push(buildQrDrawable(element))
+        break
+
+      case 'pdf417':
+        drawables.push(buildPdf417Drawable(element, contentWidthPx))
         break
 
       default: {
@@ -184,6 +191,20 @@ function buildBarcodeDrawable(element: PrintJobElement & { type: 'barcode' }, co
 function buildQrDrawable(element: PrintJobElement & { type: 'qrcode' }): Drawable {
   const cellSizePx = element.size ?? QRCODE_DEFAULT_CELL_PX
   return qrDrawable(buildQrCode(element.value, cellSizePx), element.align ?? 'center')
+}
+
+/** Reuses realBarcodeDrawable()'s "too wide for paper" handling — PDF417 can overflow the paper just like a 1D barcode. */
+function buildPdf417Drawable(element: PrintJobElement & { type: 'pdf417' }, contentWidthPx: number): Drawable {
+  const moduleScale = element.width ?? PDF417_DEFAULT_SCALE
+  const barcode = buildPdf417(element.value, moduleScale, {
+    columns: element.columns,
+    rows: element.rows,
+    errorlevel: element.errorlevel,
+    truncated: element.truncated,
+  })
+  return barcode
+    ? realBarcodeDrawable(barcode, element.align ?? 'center', contentWidthPx)
+    : placeholderDrawable('pdf417', element.value, PDF417_DEFAULT_HEIGHT_PX, element.align ?? 'center')
 }
 
 function textDrawable(

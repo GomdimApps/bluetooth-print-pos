@@ -38,6 +38,21 @@ declare module '@point-of-sale/receipt-printer-encoder' {
     errorlevel?: 'l' | 'm' | 'q' | 'h'
   }
 
+  export interface Pdf417Options {
+    /** 0 (auto) or 1-30. Default 0. */
+    columns?: number
+    /** 0 (auto) or 3-90. Default 0. */
+    rows?: number
+    /** Module width ratio, 2-8. Default 3. */
+    width?: number
+    /** Module height ratio, 2-8. Default 3. */
+    height?: number
+    /** 0-8. Default 1. */
+    errorlevel?: number
+    /** Default false. */
+    truncated?: boolean
+  }
+
   export default class ReceiptPrinterEncoder {
     constructor(options?: ReceiptPrinterEncoderOptions)
 
@@ -59,6 +74,7 @@ declare module '@point-of-sale/receipt-printer-encoder' {
     rule(options?: RuleOptions): this
     barcode(value: string, symbology: string, options?: BarcodeOptions): this
     qrcode(data: string, options?: QrcodeOptions): this
+    pdf417(value: string, options?: Pdf417Options): this
     /** width/height must be multiples of 8. `source` accepts HTMLImageElement, canvas or ImageData. */
     image(
       source: CanvasImageSource | ImageData,

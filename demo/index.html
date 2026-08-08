@@ -89,13 +89,19 @@
   <label for="qrInput">QR code content (optional)</label>
   <input type="text" id="qrInput" placeholder="e.g. https://example.com" />
 
+  <label for="pdf417Input">PDF417 content (optional)</label>
+  <input type="text" id="pdf417Input" placeholder="e.g. a boarding pass or ID payload" />
+
+  <label><input type="checkbox" id="pdf417TruncatedCheck" /> PDF417 truncated (fewer bars per row, no stop pattern)</label>
+
   <button id="printBtn" disabled>Print</button>
   <button id="previewBtn">Preview</button>
   <p class="note">
     Preview renders exactly what would be printed — same text wrapping, same image
-    dithering, real scannable Code128/ITF/QR — with no printer and no Bluetooth needed
-    at all. If a barcode is too wide for the paper, the preview shows it clipped with a
-    red warning instead of finding out from the printer's own "wide error!" on real paper.
+    dithering, real scannable Code128/ITF/QR/PDF417 — with no printer and no Bluetooth
+    needed at all. If a barcode is too wide for the paper, the preview shows it clipped
+    with a red warning instead of finding out from the printer's own "wide error!" on
+    real paper.
   </p>
 </fieldset>
 
@@ -127,6 +133,8 @@
   const barcodeInput = document.getElementById('barcodeInput')
   const barcodeSymbologySelect = document.getElementById('barcodeSymbologySelect')
   const qrInput = document.getElementById('qrInput')
+  const pdf417Input = document.getElementById('pdf417Input')
+  const pdf417TruncatedCheck = document.getElementById('pdf417TruncatedCheck')
   const previewBtn = document.getElementById('previewBtn')
   const previewImg = document.getElementById('previewImg')
 
@@ -218,12 +226,14 @@
     const file = imageInput.files[0]
     const barcodeValue = barcodeInput.value.trim()
     const qrValue = qrInput.value.trim()
+    const pdf417Value = pdf417Input.value.trim()
 
     const content = []
     if (file) content.push({ type: 'image', source: file, align: 'center' })
     for (const line of lines) content.push({ type: 'text', value: line, align, bold })
     if (barcodeValue) content.push({ type: 'barcode', value: barcodeValue, symbology: barcodeSymbologySelect.value })
     if (qrValue) content.push({ type: 'qrcode', value: qrValue })
+    if (pdf417Value) content.push({ type: 'pdf417', value: pdf417Value, truncated: pdf417TruncatedCheck.checked })
     content.push({ type: 'newline', lines: 2 })
 
     return content.length > 0 ? { paperWidth: selectedPaperWidth(), content, cut: 'full' } : null

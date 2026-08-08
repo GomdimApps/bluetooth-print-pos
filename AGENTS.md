@@ -71,7 +71,8 @@ src/Preview/
   code128.ts                    # real Code128 Subset B encoder + canvas renderer
   itf.ts                        # real ITF (Interleaved 2 of 5) encoder + canvas renderer
   qrcode.ts                     # wraps qrcode-generator for a real, scannable QR
-  barcodeDrawing.ts             # shared BarcodeDrawing interface (code128.ts + itf.ts)
+  pdf417.ts                     # wraps @bwip-js/browser for a real, scannable PDF417
+  barcodeDrawing.ts             # shared BarcodeDrawing interface (code128.ts + itf.ts + pdf417.ts)
 
 demo/index.html                 # manual test page — loads ../build/printer-wrapper.js directly
 Dockerfile / docker-compose.yml / nginx/default.conf   # serves demo/ + build/ on :3000
@@ -90,7 +91,10 @@ These cost real debugging time. Don't reintroduce them.
    `Object.keys(this.#m)`. **Fix pattern**: only spread a key into the
    options object when it's actually defined —
    `...(value !== undefined ? { key: value } : {})`. Same hazard applies to
-   `printerModel` and to `qrcode()`'s `{ size }` option. See
+   `printerModel` and to `qrcode()`'s `{ size }` option, and identically to
+   `pdf417()`'s `{ columns, rows, width, height, errorlevel, truncated }` —
+   its defaults (`{width:3,height:3,columns:0,rows:0,errorlevel:1,truncated:false}`)
+   get merged the exact same way, confirmed by reading its source. See
    `ReceiptBuilder.ts` for the working pattern.
 
 2. **`encoder.text()` trims leading/trailing whitespace internally**, even
@@ -113,12 +117,15 @@ These cost real debugging time. Don't reintroduce them.
    command. `encoder.align()` is still called (harmless, needed for
    barcode/qrcode elsewhere).
 
-4. **`.barcode()`/`.qrcode()`/`.image()` don't generate any matrix/bars
-   themselves** — they just emit the ESC/POS command bytes and let the
-   *printer's firmware* draw the symbol. There is nothing to reuse from
-   `@point-of-sale/receipt-printer-encoder` for the preview's real
-   barcode/QR rendering — `Preview/code128.ts`, `Preview/itf.ts`,
-   `Preview/qrcode.ts` are fully independent implementations.
+4. **`.barcode()`/`.qrcode()`/`.pdf417()`/`.image()` don't generate any
+   matrix/bars themselves** — they just emit the ESC/POS command bytes and
+   let the *printer's firmware* draw the symbol. There is nothing to reuse
+   from `@point-of-sale/receipt-printer-encoder` for the preview's real
+   barcode/QR/PDF417 rendering — `Preview/code128.ts`, `Preview/itf.ts`,
+   `Preview/qrcode.ts`, `Preview/pdf417.ts` are fully independent
+   implementations, and print-side correctness never depends on any of
+   them: a bug in `pdf417.ts`'s preview rendering cannot break a real
+   print, and vice versa.
 
 5. **QR `size` option is dots-per-module directly** (encoder default: `6`),
    not a multiplier. `Preview/PreviewRenderer.ts`'s `QRCODE_DEFAULT_CELL_PX`
@@ -232,7 +239,21 @@ These cost real debugging time. Don't reintroduce them.
   `symbology: 'code128'` and `'itf'`/`'interleaved-2-of-5'` only. Anything
   else renders as a labeled placeholder box in the preview; the real print
   path still sends it to the encoder as-is (works if the encoder/printer
-  supports that symbology, just isn't preview-visualized).
+  supports that symbology, just isn't preview-visualized). `pdf417` is a
+  separate `PrintJobElement` type (its own encoder method, not a `barcode`
+  symbology) and always gets a real preview, via `@bwip-js/browser`.
+- `@bwip-js/browser` (MIT) was added specifically for PDF417 preview
+  rendering: PDF417 needs compaction modes, a ~2800-entry codeword table
+  and Reed-Solomon error correction over GF(929), which — unlike
+  Code128/ITF's small fixed tables — isn't safely hand-portable here with
+  no way to physically scan-test the result. Deliberate trade-off, made
+  explicitly: a small, newer, unproven npm package (matrix output, same
+  pattern as `qrcode-generator`) was passed over for this actively
+  maintained, years-in-production library instead — at a real, measured
+  cost: it bundles its full 100+-symbology engine (only `pdf417` is used),
+  which took the standalone UMD bundle from ~120KB to **~1.06MB**. Preview
+  correctness for PDF417 depends entirely on this dependency; print-side
+  correctness does not (see gotcha #4).
 - `PaperWidth` is `'58mm' | '80mm' | '112mm'`. `'80mm'` values are
   cross-checked against real hardware constants (576 dots); `'112mm'` is an
   estimate, not yet hardware-verified.

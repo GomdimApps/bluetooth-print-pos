@@ -120,6 +120,23 @@ export type PrintJobElement =
       align?: Alignment
     }
   | { type: 'qrcode'; value: string; align?: Alignment; size?: number }
+  | {
+      type: 'pdf417'
+      value: string
+      align?: Alignment
+      /** 0 (auto) or 1-30. */
+      columns?: number
+      /** 0 (auto) or 3-90. */
+      rows?: number
+      /** Module width ratio, 2-8. */
+      width?: number
+      /** Module height ratio, 2-8. */
+      height?: number
+      /** Error correction level, 0-8. */
+      errorlevel?: number
+      /** Truncated PDF417 (fewer bars per row, no right row-indicator/stop pattern) instead of standard. Default false. */
+      truncated?: boolean
+    }
 
 export interface PrintJob {
   columns?: number

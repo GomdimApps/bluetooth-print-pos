@@ -1,7 +1,7 @@
 # bluetooth-print-pos
 
 A communication wrapper for thermal receipt printers over **Web Bluetooth**.
-Builds receipts (text, images, barcodes, QR codes) from a JSON-serializable
+Builds receipts (text, images, barcodes, QR codes, PDF417) from a JSON-serializable
 object and sends them to the printer — the caller never needs to know
 anything about ESC/POS encoding.
 
@@ -16,7 +16,7 @@ dependency.
 Runs **entirely in the browser, with no Node at runtime** — Node is only
 used at build time to produce the artifacts. It also includes a
 [print preview](#print-preview) that renders exactly what would be printed
-— text, images, barcodes, QR codes — as an image, with no printer needed.
+— text, images, barcodes, QR codes, PDF417 — as an image, with no printer needed.
 
 ![Real thermal print next to the matching browser preview and connection log](docs/images/test-mobile-printer.png)
 
@@ -156,8 +156,8 @@ class PrinterWrapper {
 ```
 
 `PrintJob.content` is an ordered list of elements: `text`, `image`,
-`barcode`, `qrcode`, `newline`, `rule`. See [src/types.ts](src/types.ts)
-for the full shape of each one.
+`barcode`, `qrcode`, `pdf417`, `newline`, `rule`. See
+[src/types.ts](src/types.ts) for the full shape of each one.
 
 Errors arrive as a rejected Promise with a `.code`:
 `unsupported | user-gesture-required | connect-cancelled | connect-failed | not-connected | busy | print-failed`.
@@ -165,8 +165,8 @@ Errors arrive as a rejected Promise with a `.code`:
 ### Text alignment, including justify
 
 A `text` element's `align` accepts `'left' | 'center' | 'right' | 'justify'`
-(the other elements — `image`/`barcode`/`qrcode` — only take the first
-three, alignment doesn't apply to `'justify'` there):
+(the other elements — `image`/`barcode`/`qrcode`/`pdf417` — only take the
+first three, alignment doesn't apply to `'justify'` there):
 
 ```ts
 { type: 'text', value: 'Lorem ipsum dolor sit amet...', align: 'justify' }
@@ -228,7 +228,7 @@ PrinterBT/innoPrint-based printers) at the cost of a noisier device picker.
 *exactly* what would come out of the printer — same text wrapping, same
 image resize + dithering (byte-identical to the real print, via the same
 `canvas-dither` the encoder uses internally), real scannable Code128/ITF
-barcodes and QR codes — without a printer, without connecting, and without
+barcodes, QR codes and PDF417 — without a printer, without connecting, and without
 even a browser that supports Web Bluetooth. Use it to catch layout/content
 mistakes (cut-off text, distorted images, wrong paper width, bad barcode
 data) before ever touching hardware.
@@ -277,7 +277,19 @@ onMounted(async () => { preview.value = await printer.renderPreview(job) })
 default) and `'itf'`/`'interleaved-2-of-5'` (bank slip/boleto-style numeric
 codes) — other symbologies (upc/ean13/code39/etc.) render as a labeled
 placeholder box instead of a real symbol, since implementing every ESC/POS
-symbology was out of scope for this pass.
+symbology was out of scope for this pass. `pdf417` (a separate element
+type, not a `barcode` symbology) always renders a real, scannable 2D
+symbol in preview, via `@bwip-js/browser`:
+
+```ts
+{ type: 'pdf417', value: 'anything, not just numbers', truncated: false }
+```
+
+`truncated: true` produces the truncated PDF417 variant — fewer bars per
+row, no right-side row-indicator columns or stop pattern, useful when
+paper width is tight. `columns`/`rows`/`errorlevel` are also available to
+tune the symbol's shape and error-correction level; see
+[src/types.ts](src/types.ts) for the full option list.
 
 **"Too wide" warning**: some codes — a 44-digit boleto barcode is the
 classic case — are physically wider than the paper once rendered, and a
