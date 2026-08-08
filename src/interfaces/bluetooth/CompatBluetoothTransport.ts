@@ -1,17 +1,18 @@
 import type { PrinterInfo } from '../../types'
 import type { PrinterTransport } from '../PrinterTransport'
 import { normalizeConnectError, normalizePrintError, toPrinterError } from '../printerErrors'
-import { isBluetoothSupported } from './DefaultBluetoothTransport'
-import { ALL_SERVICE_UUIDS, findProfile, type BluetoothPrinterProfile } from './profiles'
+import { isBluetoothSupported, openConnection } from './DefaultBluetoothTransport'
+import { ALL_SERVICE_UUIDS, type BluetoothPrinterProfile } from './profiles'
 import { writeChunked } from './writeChunked'
 
 /**
  * Compatibility Bluetooth transport: instead of restricting the device
  * picker to the profiles in profiles.ts, it lists every nearby BLE device
  * (`acceptAllDevices: true`) and only checks which known printer profile
- * applies *after* the user picks one and GATT-connects. Reaches printers
- * DefaultBluetoothTransport.ts can't even list, at the cost of a noisier
- * device picker.
+ * applies *after* the user picks one and GATT-connects — via the same
+ * `openConnection()` DefaultBluetoothTransport.ts uses, they only differ in
+ * how the device gets picked. Reaches printers DefaultBluetoothTransport.ts
+ * can't even list, at the cost of a noisier device picker.
  */
 export class CompatBluetoothTransport implements PrinterTransport {
   private device: BluetoothDevice | null = null
@@ -39,46 +40,15 @@ export class CompatBluetoothTransport implements PrinterTransport {
     }
 
     try {
-      const info = await this.connectToDevice(device)
+      const { characteristic, profile, info } = await openConnection(device)
       this.device = device
+      this.characteristic = characteristic
+      this.profile = profile
       this.info = info
       return info
     } catch (error) {
       this.reset()
       throw normalizeConnectError(error)
-    }
-  }
-
-  /** GATT-connects, matches a known profile and grabs its write characteristic. Throws on any failure. */
-  private async connectToDevice(device: BluetoothDevice): Promise<PrinterInfo> {
-    if (!device.gatt) {
-      throw toPrinterError('connect-failed', `Printer "${deviceLabel(device)}" has no GATT server.`)
-    }
-
-    const server = await device.gatt.connect()
-    const services = await server.getPrimaryServices()
-    const serviceUuids = services.map((service) => service.uuid)
-
-    const profile = findProfile(device.name, serviceUuids)
-    if (!profile) {
-      server.disconnect()
-      throw toPrinterError(
-        'connect-failed',
-        `Printer "${deviceLabel(device)}" connected, but no known ESC/POS/StarPRNT service was found. ` +
-          `Available service UUIDs: ${serviceUuids.join(', ')}`,
-      )
-    }
-
-    const service = await server.getPrimaryService(profile.service)
-    this.characteristic = await service.getCharacteristic(profile.characteristic)
-    this.profile = profile
-
-    return {
-      type: 'bluetooth',
-      name: device.name ?? 'Unknown printer',
-      id: device.id,
-      language: profile.language,
-      codepageMapping: profile.codepageMapping,
     }
   }
 
@@ -112,8 +82,4 @@ export class CompatBluetoothTransport implements PrinterTransport {
     this.profile = null
     this.info = null
   }
-}
-
-function deviceLabel(device: BluetoothDevice): string {
-  return device.name ?? device.id
 }

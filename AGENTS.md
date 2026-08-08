@@ -138,8 +138,9 @@ These cost real debugging time. Don't reintroduce them.
    `src/interfaces/bluetooth/`: `DefaultBluetoothTransport.ts` (filtered,
    `requestDevice({ filters: ALL_FILTERS })`) and
    `CompatBluetoothTransport.ts` (`acceptAllDevices: true`, matches *after*
-   connecting instead). Both read from the same `profiles.ts` table and
-   `findProfile()` — the only real difference between them is the
+   connecting instead). Both call the same exported `openConnection()` in
+   `DefaultBluetoothTransport.ts` (GATT-connect, `findProfile()`, grab the
+   write characteristic) — the only real difference between them is the
    `requestDevice()` call itself. `connect({ compat: true })` selects the
    latter. This whole layer was ported in-house from
    [WebBluetoothReceiptPrinter](https://github.com/NielsLeenheer/WebBluetoothReceiptPrinter)
@@ -167,6 +168,26 @@ These cost real debugging time. Don't reintroduce them.
     `'browser'` explicitly.** `@point-of-sale/receipt-printer-encoder`'s
     `package.json#exports` only declares a `"browser"` condition (no
     top-level `import`/`require` fallback) — without it, resolution fails.
+
+11. **Not every printer characteristic supports `writeValueWithResponse()`.**
+    Confirmed on real hardware (an MTP-II clone): its print characteristic
+    only advertises `properties.writeWithoutResponse`, so calling
+    `writeValueWithResponse()` on it throws `NotSupportedError` (legacy
+    DOMException `.code === 9`) on the very first chunk.
+    `writeChunked.ts`'s `pickWriter()` checks `characteristic.properties`
+    and picks whichever write method the characteristic actually supports
+    (`write` preferred, `writeWithoutResponse` as fallback) instead of
+    assuming.
+
+12. **A native `DOMException` structurally matches `PrinterError`** — it has
+    both a `.code` and a `.message` property, same as our type, just with a
+    legacy *numeric* `.code` (e.g. `9` for `NotSupportedError`) instead of
+    one of our string codes. This is exactly how gotcha #11 above was first
+    spotted: a raw DOMException slipped past `isPrinterError()`'s old
+    `'code' in error && 'message' in error` check, so `normalizePrintError()`
+    treated it as already-normalized and let a numeric code leak to
+    callers. `isPrinterError()` (`printerErrors.ts`) now also checks that
+    `code` is one of the actual `PrinterErrorCode` strings.
 
 ## Coding conventions in this repo
 

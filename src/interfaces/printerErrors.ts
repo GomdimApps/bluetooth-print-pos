@@ -1,4 +1,14 @@
-import type { PrinterError } from '../types'
+import type { PrinterError, PrinterErrorCode } from '../types'
+
+const PRINTER_ERROR_CODES = new Set<PrinterErrorCode>([
+  'unsupported',
+  'user-gesture-required',
+  'connect-cancelled',
+  'connect-failed',
+  'not-connected',
+  'busy',
+  'print-failed',
+])
 
 /** Shared by every printer transport so error codes stay consistent across strategies. */
 export function toPrinterError(code: PrinterError['code'], message: string): PrinterError {
@@ -9,8 +19,23 @@ export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+/**
+ * A native `DOMException` (e.g. from `requestDevice()`/GATT calls) also has
+ * both a `.code` and a `.message` property — its legacy numeric error code,
+ * not one of ours — so checking for `'code' in error` alone misidentifies
+ * it as an already-normalized PrinterError and lets it pass through
+ * unnormalized, leaking a numeric `.code` to callers instead of the
+ * documented PrinterErrorCode strings. Only treat `error` as ours if its
+ * `code` is actually one of PrinterErrorCode's values.
+ */
 export function isPrinterError(error: unknown): error is PrinterError {
-  return typeof error === 'object' && error !== null && 'code' in error && 'message' in error
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'message' in error &&
+    'code' in error &&
+    PRINTER_ERROR_CODES.has((error as { code: unknown }).code as PrinterErrorCode)
+  )
 }
 
 /**

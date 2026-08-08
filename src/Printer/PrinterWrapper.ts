@@ -116,36 +116,20 @@ export class PrinterWrapper {
 
   /** Builds the receipt from a JSON-serializable object and sends it to the printer. */
   async printReceipt(job: PrintJob): Promise<void> {
-    if (!this.active?.isConnected()) {
-      const error: PrinterError = { code: 'not-connected', message: 'Call connect() before printing.' }
-      this.emit('error', null, error)
-      throw error
-    }
-
-    if (this.printing) {
-      const error: PrinterError = { code: 'busy', message: 'A print job is already in progress.' }
-      this.emit('error', null, error)
-      throw error
-    }
-
-    this.printing = true
-    this.emit('printing')
-
-    try {
-      const bytes = await buildReceiptBytes(job, this.config)
-      await this.active.print(bytes)
-      this.emit('connected', this.active.getInfo())
-    } catch (error) {
-      const printerError = normalizePrintError(error)
-      this.emit('error', this.active.getInfo(), printerError)
-      throw printerError
-    } finally {
-      this.printing = false
-    }
+    return this.guardedPrint(() => buildReceiptBytes(job, this.config))
   }
 
   /** Escape hatch: sends bytes that are already encoded (e.g. built by hand with ReceiptPrinterEncoder). */
   async printRaw(bytes: Uint8Array | number[]): Promise<void> {
+    return this.guardedPrint(async () => (bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)))
+  }
+
+  /**
+   * Shared by printReceipt()/printRaw(): checks connection/busy state,
+   * holds the `printing` lock while `buildBytes()` runs and the result is
+   * sent, and normalizes/emits any error either step throws.
+   */
+  private async guardedPrint(buildBytes: () => Promise<Uint8Array>): Promise<void> {
     if (!this.active?.isConnected()) {
       const error: PrinterError = { code: 'not-connected', message: 'Call connect() before printing.' }
       this.emit('error', null, error)
@@ -162,8 +146,8 @@ export class PrinterWrapper {
     this.emit('printing')
 
     try {
-      const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
-      await this.active.print(data)
+      const bytes = await buildBytes()
+      await this.active.print(bytes)
       this.emit('connected', this.active.getInfo())
     } catch (error) {
       const printerError = normalizePrintError(error)

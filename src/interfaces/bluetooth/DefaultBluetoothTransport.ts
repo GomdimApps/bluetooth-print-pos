@@ -9,6 +9,57 @@ export function isBluetoothSupported(): boolean {
   return typeof navigator !== 'undefined' && 'bluetooth' in navigator
 }
 
+export function deviceLabel(device: BluetoothDevice): string {
+  return device.name ?? device.id
+}
+
+interface OpenedConnection {
+  characteristic: BluetoothRemoteGATTCharacteristic
+  profile: BluetoothPrinterProfile
+  info: PrinterInfo
+}
+
+/**
+ * GATT-connects to an already-picked device, matches it against a known
+ * profile (same as upstream WebBluetoothReceiptPrinter's #evaluateFilter,
+ * re-run after connecting) and grabs its write characteristic. Shared by
+ * both transports — DefaultBluetoothTransport and CompatBluetoothTransport
+ * only differ in how the device is picked (`requestDevice()`'s `filters`
+ * vs `acceptAllDevices`), everything after that is identical.
+ */
+export async function openConnection(device: BluetoothDevice): Promise<OpenedConnection> {
+  if (!device.gatt) {
+    throw toPrinterError('connect-failed', `Printer "${deviceLabel(device)}" has no GATT server.`)
+  }
+
+  const server = await device.gatt.connect()
+  const services = await server.getPrimaryServices()
+  const serviceUuids = services.map((service) => service.uuid)
+
+  const profile = findProfile(device.name, serviceUuids)
+  if (!profile) {
+    server.disconnect()
+    throw toPrinterError(
+      'connect-failed',
+      `Printer "${deviceLabel(device)}" connected, but no known ESC/POS/StarPRNT service was found. ` +
+        `Available service UUIDs: ${serviceUuids.join(', ')}`,
+    )
+  }
+
+  const service = await server.getPrimaryService(profile.service)
+  const characteristic = await service.getCharacteristic(profile.characteristic)
+
+  const info: PrinterInfo = {
+    type: 'bluetooth',
+    name: device.name ?? 'Unknown printer',
+    id: device.id,
+    language: profile.language,
+    codepageMapping: profile.codepageMapping,
+  }
+
+  return { characteristic, profile, info }
+}
+
 /**
  * Default Bluetooth transport, ported from
  * github.com/NielsLeenheer/WebBluetoothReceiptPrinter's `main.js` (read in
@@ -44,46 +95,15 @@ export class DefaultBluetoothTransport implements PrinterTransport {
     }
 
     try {
-      const info = await this.connectToDevice(device)
+      const { characteristic, profile, info } = await openConnection(device)
       this.device = device
+      this.characteristic = characteristic
+      this.profile = profile
       this.info = info
       return info
     } catch (error) {
       this.reset()
       throw normalizeConnectError(error)
-    }
-  }
-
-  /** GATT-connects, matches a known profile (same as upstream's #evaluateFilter, re-run after connecting) and grabs its write characteristic. */
-  private async connectToDevice(device: BluetoothDevice): Promise<PrinterInfo> {
-    if (!device.gatt) {
-      throw toPrinterError('connect-failed', `Printer "${deviceLabel(device)}" has no GATT server.`)
-    }
-
-    const server = await device.gatt.connect()
-    const services = await server.getPrimaryServices()
-    const serviceUuids = services.map((service) => service.uuid)
-
-    const profile = findProfile(device.name, serviceUuids)
-    if (!profile) {
-      server.disconnect()
-      throw toPrinterError(
-        'connect-failed',
-        `Printer "${deviceLabel(device)}" connected, but no known ESC/POS/StarPRNT service was found. ` +
-          `Available service UUIDs: ${serviceUuids.join(', ')}`,
-      )
-    }
-
-    const service = await server.getPrimaryService(profile.service)
-    this.characteristic = await service.getCharacteristic(profile.characteristic)
-    this.profile = profile
-
-    return {
-      type: 'bluetooth',
-      name: device.name ?? 'Unknown printer',
-      id: device.id,
-      language: profile.language,
-      codepageMapping: profile.codepageMapping,
     }
   }
 
@@ -117,8 +137,4 @@ export class DefaultBluetoothTransport implements PrinterTransport {
     this.profile = null
     this.info = null
   }
-}
-
-function deviceLabel(device: BluetoothDevice): string {
-  return device.name ?? device.id
 }
