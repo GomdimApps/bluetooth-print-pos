@@ -6,39 +6,36 @@ quirks below.
 
 ## What this is
 
-`bluetooth-print-pos` — a wrapper around ESC/POS receipt printing, runnable
-**entirely in the browser, no Node at runtime**. Two independent transports
-are supported behind the same `PrinterTransport` interface: Web Bluetooth
-(talks directly to the printer) and QZ Tray (talks to the
-[QZ Tray](https://qz.io) desktop app over its local websocket API, which in
-turn talks to an OS-registered printer — USB or otherwise). It ships in two
-forms from the same source, built by `webpack.config.js` (array of two
-configs):
+`bluetooth-print-pos` wraps ESC/POS receipt printing, **entirely in the
+browser, no Node at runtime**. Two transports share one `PrinterTransport`
+interface: Web Bluetooth (direct) and QZ Tray (talks to the
+[QZ Tray](https://qz.io) desktop app's local websocket, which talks to an
+OS-registered printer — USB or otherwise). Ships in two forms from one
+source via `webpack.config.js` (array of two configs):
 
 - **Standalone UMD** (`build/printer-wrapper.js`) — fully self-contained,
   bundles `@point-of-sale/*`, `canvas-dither`, `qrcode-generator`, `qz-tray`
-  inside. Drop into a `<script>` tag, no bundler, no `npm install` on the
-  consumer side. `output.library.type: 'umd'`, `export: 'default'` so
-  `window.PrinterWrapper` is the class directly, not `{default: ...}`.
+  inside. Drop into a `<script>` tag, no bundler, no `npm install` needed.
+  `output.library.type: 'umd'`, `export: 'default'` so `window.PrinterWrapper`
+  is the class directly, not `{default: ...}`.
 - **ESM** (`build/printer-wrapper.esm.js`) — for bundler consumers
-  (Vite/webpack). `@point-of-sale/*` and `qz-tray` are `externals` here
-  (`pointOfSaleExternals`/`qzTrayExternals` in webpack.config.js) so they
-  come in as the consumer's own npm `dependencies` instead of being
-  duplicated — `canvas-dither`/`qrcode-generator` stay bundled (too small to
-  bother externalizing). Unlike `@point-of-sale/*`, `qz-tray` has no
-  `package.json#exports`/ESM entry (just a legacy `main` UMD script), so
-  this emits a bare `import ... from 'qz-tray'` that relies on the
-  *consumer's own bundler* resolving a CJS/UMD package via CJS interop —
-  confirmed working with webpack 5's default externals handling in this
-  repo's own build, see gotcha #13.
-- `package.json#exports` routes `require` → UMD, `import` → ESM. So
-  `require('bluetooth-print-pos')` in a Vue2/CJS project gets the exact
-  same self-contained bundle as the `<script>` tag, not the ESM one.
+  (Vite/webpack). `@point-of-sale/*` and `qz-tray` are `externals`
+  (`pointOfSaleExternals`/`qzTrayExternals` in webpack.config.js), coming in
+  as the consumer's own npm `dependencies` instead of duplicated —
+  `canvas-dither`/`qrcode-generator` stay bundled (too small to bother).
+  Unlike `@point-of-sale/*`, `qz-tray` has no `package.json#exports`/ESM
+  entry (just a legacy `main` UMD script), so this emits a bare
+  `import ... from 'qz-tray'` relying on the *consumer's own bundler*
+  resolving a CJS/UMD package via CJS interop — confirmed working with
+  webpack 5's default externals handling in this repo's own build, see
+  gotcha #13.
+- `package.json#exports` routes `require` → UMD, `import` → ESM, so
+  `require('bluetooth-print-pos')` in a Vue2/CJS project gets the same
+  self-contained bundle as the `<script>` tag, not the ESM one.
 
-`npm run build:standalone` builds only the UMD config — useful when you
-just need to refresh `build/printer-wrapper.js` for the demo without the
-full `build` (which also runs `tsc -p tsconfig.build.json` for
-`build/types/`).
+`npm run build:standalone` builds only the UMD config — refreshes
+`build/printer-wrapper.js` for the demo without the full `build` (which
+also runs `tsc -p tsconfig.build.json` for `build/types/`).
 
 ## Directory map
 
@@ -53,7 +50,7 @@ src/types/point-of-sale.d.ts    # hand-written ambient types for @point-of-sale/
 src/types/canvas-dither.d.ts    # same, for canvas-dither
 
 src/interfaces/
-  PrinterTransport.ts           # transport-agnostic interface (getInfo/connect/disconnect/isConnected/print) — implemented by both the Bluetooth transports and QzTransport
+  PrinterTransport.ts           # transport-agnostic interface (getInfo/connect/disconnect/isConnected/print) — implemented by both Bluetooth transports and QzTransport
   printerErrors.ts              # shared PrinterError normalization (toPrinterError/normalizeConnectError/normalizePrintError)
 
   bluetooth/
@@ -83,7 +80,7 @@ src/Preview/
   code128.ts                    # wraps @bwip-js/browser for a real, scannable Code128
   itf.ts                        # wraps @bwip-js/browser for a real, scannable ITF (Interleaved 2 of 5)
   qrcode.ts                     # wraps qrcode-generator for a real, scannable QR
-  pdf417.ts                     # wraps @bwip-js/browser for a real, scannable PDF417
+  pdf417.ts                     # wraps @bwip-js/browser for a real, scannable PDF417 (also picks the shared columns/errorlevel defaults — see gotchas #4/#20/#21)
   barcodeDrawing.ts             # shared BarcodeDrawing interface (code128.ts + itf.ts + pdf417.ts)
 
 demo/index.html                 # manual test page — loads ../build/printer-wrapper.js directly
@@ -94,348 +91,274 @@ Dockerfile / docker-compose.yml / nginx/default.conf   # serves demo/ + build/ o
 
 These cost real debugging time. Don't reintroduce them.
 
-1. **`new ReceiptPrinterEncoder(options)` uses `Object.assign(defaults, ...,
-   options)` internally.** An explicit `key: undefined` in `options`
-   *overwrites* the library's internal default (unlike `??`, `Object.assign`
-   does not skip own-properties whose value is `undefined`). Concretely:
-   `codepageMapping: undefined` wipes the encoder's default codepage and
-   crashes with `Cannot convert undefined or null to object` inside
-   `Object.keys(this.#m)`. **Fix pattern**: only spread a key into the
-   options object when it's actually defined —
-   `...(value !== undefined ? { key: value } : {})`. Same hazard applies to
-   `printerModel` and to `qrcode()`'s `{ size }` option, and identically to
-   `pdf417()`'s `{ columns, rows, width, height, errorlevel, truncated }` —
-   its defaults (`{width:3,height:3,columns:0,rows:0,errorlevel:1,truncated:false}`)
-   get merged the exact same way, confirmed by reading its source. See
-   `ReceiptBuilder.ts` for the working pattern.
+1. **`new ReceiptPrinterEncoder(options)` merges via `Object.assign(defaults,
+   ..., options)`** — an explicit `key: undefined` *overwrites* the default
+   (unlike `??`, `Object.assign` doesn't skip own-props valued `undefined`).
+   E.g. `codepageMapping: undefined` wipes the default codepage →
+   `Cannot convert undefined or null to object` in `Object.keys(this.#m)`.
+   **Fix**: only spread a key when defined —
+   `...(value !== undefined ? { key: value } : {})`. Same hazard hits
+   `printerModel`, `qrcode()`'s `{ size }`, and `pdf417()`'s `{ columns, rows,
+   width, height, errorlevel, truncated }` (defaults
+   `{width:3,height:3,columns:0,rows:0,errorlevel:1,truncated:false}`,
+   confirmed by reading its source). See `ReceiptBuilder.ts`.
 
-2. **`encoder.text()` trims leading/trailing whitespace internally**, even
-   on a single line that doesn't need wrapping. This makes manual
-   space-padding for alignment silently disappear before it reaches the
-   printer. **Fix**: build the padded/justified line yourself, then send it
-   via `encoder.raw(byteArray)` instead of `encoder.text()` — `raw()`
-   bypasses the trimming pipeline entirely and still gets bold/underline/size
-   styling applied correctly (verified by diffing the byte output of both
-   paths). Only safe for pure printable-ASCII (32-126) content, since
-   `raw()` skips codepage-aware encoding — non-ASCII falls back to
-   `encoder.text()` unpadded (see `sendLine.ts`).
+2. **`encoder.text()` trims leading/trailing whitespace**, even on a single
+   non-wrapped line — silently erasing manual space-padding for alignment.
+   **Fix**: build the padded/justified line yourself and send via
+   `encoder.raw(byteArray)`, which skips the trimming but still applies
+   bold/underline/size (verified by diffing both paths' byte output). Only
+   safe for printable-ASCII (32-126) — `raw()` skips codepage-aware
+   encoding, so non-ASCII falls back to unpadded `encoder.text()`
+   (`sendLine.ts`).
 
-3. **`encoder.align()` only actually helps for barcode/qrcode/image** — the
-   library explicitly wraps those with align-before/align-reset-after. For
-   plain text it just sets a queued flag; whether the *physical printer*
-   honors the resulting `ESC a n` command is a firmware matter, and cheap
-   ESC/POS clones often don't. That's why text alignment is done via manual
-   space-padding (`sendLine.ts`/`justify.ts`), not by trusting the native
-   command. `encoder.align()` is still called (harmless, needed for
-   barcode/qrcode elsewhere).
+3. **`encoder.align()` only reliably affects barcode/qrcode/image** (the
+   library wraps those with align-before/reset-after); for plain text it
+   just sets a queued flag — whether the physical printer honors the
+   resulting `ESC a n` is a firmware matter, and cheap clones often don't.
+   That's why text alignment uses manual space-padding
+   (`sendLine.ts`/`justify.ts`) instead. `encoder.align()` is still called
+   (harmless, needed for barcode/qrcode).
 
-4. **`.barcode()`/`.qrcode()`/`.pdf417()`/`.image()` don't generate any
-   matrix/bars themselves** — they just emit the ESC/POS command bytes and
-   let the *printer's firmware* draw the symbol. There is nothing to reuse
-   from `@point-of-sale/receipt-printer-encoder` for the preview's real
-   barcode/QR/PDF417 rendering. `Preview/code128.ts`, `Preview/itf.ts` and
-   `Preview/pdf417.ts` are thin `@bwip-js/browser` wrappers (`bcid:
-   'code128'`/`'interleaved2of5'`/`'pdf417'`); `Preview/qrcode.ts` is the
-   one independent implementation, via `qrcode-generator`. Either way,
-   print-side correctness never depends on any of them: a bug in any
-   `Preview/*.ts` renderer cannot break a real print, and vice versa —
-   `ReceiptBuilder.ts` only ever calls the real encoder's own methods.
+4. **`.barcode()`/`.qrcode()`/`.pdf417()`/`.image()` emit ESC/POS bytes
+   only — the printer firmware draws the symbol**, so there's nothing to
+   reuse from the encoder for preview rendering. `Preview/code128.ts`/
+   `itf.ts`/`pdf417.ts` are thin `@bwip-js/browser` wrappers (`bcid:
+   'code128'`/`'interleaved2of5'`/`'pdf417'`); `Preview/qrcode.ts` is
+   independent, via `qrcode-generator`. Print-side correctness never
+   depends on any of them, and vice versa — `ReceiptBuilder.ts` only calls
+   the real encoder.
 
-   **One narrow, deliberate exception**: `ReceiptBuilder.ts`'s `pdf417` case
-   imports `resolvePdf417Columns()` from `Preview/pdf417.ts` — not to draw
-   anything, only to decide the `columns` *value* to send to the real
-   encoder. Without an explicit `columns` in the job, the printer firmware
-   and bwip-js would each pick their own PDF417 grid shape independently,
-   producing visibly different (though both correctly-scannable) symbols
-   between print and preview — confirmed on real hardware (Epson TM-T20X-II
-   via QZ Tray). `resolvePdf417Columns()` makes both sides agree on the same
-   paper-width-appropriate `columns` (`Preview/pdf417.ts`'s internal
-   `preferredColumns()`, `17*columns+69` modules — PDF417's standard width
-   formula, confirmed against real `@bwip-js/browser` measurements), with a
-   capacity-checked fallback to fully-automatic `columns` when that preferred count doesn't
-   fit a given value. This still doesn't violate the invariant above: actual
-   print-*byte* generation never depends on Preview rendering succeeding,
-   only this one upstream numeric choice does, and its fallback is always
-   safe. See gotcha #19 for why the fallback specifically has to be there.
+   **One deliberate exception**: `ReceiptBuilder.ts`'s `pdf417` case
+   imports `resolvePdf417Columns()` from `Preview/pdf417.ts` — only to pick
+   the `columns` value, not to draw anything. Without explicit `columns`,
+   firmware and bwip-js each choose their own grid shape independently,
+   producing visibly different (both scannable) symbols — confirmed on
+   real hardware (Epson TM-T20X-II via QZ Tray). `resolvePdf417Columns()`
+   makes both sides agree on the same paper-width-preferred `columns`
+   (`preferredColumns()`, `17*columns+69` modules — confirmed against real
+   bwip-js measurements), falling back to fully-automatic `columns` when
+   the preferred count doesn't fit. Print-*byte* generation still never
+   depends on Preview succeeding — only this numeric choice does, and its
+   fallback is always safe. See gotcha #20.
 
-5. **QR `size` option is dots-per-module directly** (encoder default: `6`),
-   not a multiplier. `Preview/PreviewRenderer.ts`'s `QRCODE_DEFAULT_CELL_PX`
-   must equal that same `6` — a mismatch here is exactly what caused the
-   preview QR to render visibly smaller than the real print (fixed once).
+5. **QR `size` is dots-per-module directly** (encoder default `6`), not a
+   multiplier. `PreviewRenderer.ts`'s `QRCODE_DEFAULT_CELL_PX` must equal
+   `6` — a mismatch here once made the preview QR render visibly smaller
+   than the real print.
 
-6. **`paperWidth` must scale both `columns` AND `imageMaxWidth` together**
-   (`config.ts#PAPER_WIDTH_SPECS`). `imageMaxWidth` is the shared ceiling for
-   image resizing, the preview canvas width, and the barcode "too wide"
-   check — scaling only `columns` (an earlier bug) means switching to
-   `paperWidth: '80mm'` does nothing for images/barcodes.
+6. **`paperWidth` must scale both `columns` and `imageMaxWidth`**
+   (`config.ts#PAPER_WIDTH_SPECS`) — `imageMaxWidth` also caps image
+   resizing, the preview canvas width, and the barcode "too wide" check.
+   Scaling only `columns` (an earlier bug) left `paperWidth: '80mm'` doing
+   nothing for images/barcodes.
 
-7. **Web Bluetooth's `requestDevice()` with `filters` restricts the device
-   picker to matching devices** — a printer whose name/service isn't in the
-   filter list never appears, regardless of whether it would work if
-   selected. That's why there are two transports, both in
-   `src/interfaces/bluetooth/`: `DefaultBluetoothTransport.ts` (filtered,
+7. **`requestDevice({ filters })` restricts the device picker to matching
+   devices** — an unlisted printer never appears, even if it'd work if
+   selected. Hence two transports in `src/interfaces/bluetooth/`:
+   `DefaultBluetoothTransport.ts` (filtered,
    `requestDevice({ filters: ALL_FILTERS })`) and
    `CompatBluetoothTransport.ts` (`acceptAllDevices: true`, matches *after*
-   connecting instead). Both call the same exported `openConnection()` in
-   `DefaultBluetoothTransport.ts` (GATT-connect, `findProfile()`, grab the
-   write characteristic) — the only real difference between them is the
-   `requestDevice()` call itself. `connect({ compat: true })` selects the
-   latter. This whole layer was ported in-house from
+   connecting). Both share `openConnection()` (GATT-connect,
+   `findProfile()`, grab write characteristic) — only `requestDevice()`
+   itself differs. `connect({ compat: true })` selects the latter. Ported
+   in-house from
    [WebBluetoothReceiptPrinter](https://github.com/NielsLeenheer/WebBluetoothReceiptPrinter)
-   (read in full from its `main` branch, not guessed) — this project no
-   longer depends on that npm package. Its "Cat printer" profile (a
-   different, non-ESC/POS/StarPRNT protocol, `language: 'meow'`) and its
+   (read in full from `main`, not guessed) — no longer an npm dependency.
+   Its "Cat printer" profile (`language: 'meow'`, non-ESC/POS/StarPRNT) and
    status-characteristic notifications were deliberately not ported — see
-   Scope limits below.
+   Scope limits.
 
-8. **`connect()` must be called from a real user gesture** (click handler),
-   both transports — browser requirement, not ours. `SecurityError` from
+8. **`connect()` must be called from a real user gesture** (both
+   transports) — a browser requirement, not ours. `SecurityError` from
    `requestDevice()` means it wasn't.
 
 9. **`@point-of-sale/receipt-printer-encoder` ships no TypeScript types.**
-   The ambient declarations in `src/types/point-of-sale.d.ts` were
-   hand-written by reading the installed `dist/*.esm.js` bundle directly
-   (minified but readable) — not a complete typing of its API, only what
-   this project calls. If you need another method from it, read the
-   installed bundle first; don't guess the signature. (Bluetooth
-   connectivity used to be a second untyped `@point-of-sale/*` package —
-   now it's this project's own TypeScript in `src/interfaces/bluetooth/`,
-   so it needs no ambient declarations at all.)
+   `src/types/point-of-sale.d.ts` was hand-written by reading the installed
+   `dist/*.esm.js` bundle (minified but readable) — only what this project
+   calls, not a full typing. Read the installed bundle before adding a
+   method; don't guess signatures. (Bluetooth used to be a second untyped
+   `@point-of-sale/*` package — it's now this project's own TypeScript in
+   `src/interfaces/bluetooth/`, needing no ambient types.)
 
-10. **The webpack UMD config needs `resolve.conditionNames` including
-    `'browser'` explicitly.** `@point-of-sale/receipt-printer-encoder`'s
+10. **The UMD webpack config needs `resolve.conditionNames` to include
+    `'browser'`** — `@point-of-sale/receipt-printer-encoder`'s
     `package.json#exports` only declares a `"browser"` condition (no
-    top-level `import`/`require` fallback) — without it, resolution fails.
+    `import`/`require` fallback); without it, resolution fails.
 
-11. **Not every printer characteristic supports `writeValueWithResponse()`.**
-    Confirmed on real hardware (an MTP-II clone): its print characteristic
-    only advertises `properties.writeWithoutResponse`, so calling
-    `writeValueWithResponse()` on it throws `NotSupportedError` (legacy
-    DOMException `.code === 9`) on the very first chunk.
-    `writeChunked.ts`'s `pickWriter()` checks `characteristic.properties`
-    and picks whichever write method the characteristic actually supports
-    (`write` preferred, `writeWithoutResponse` as fallback) instead of
-    assuming.
+11. **Not every characteristic supports `writeValueWithResponse()`.**
+    Confirmed on real hardware (MTP-II clone): its print characteristic
+    only advertises `writeWithoutResponse`, so `writeValueWithResponse()`
+    throws `NotSupportedError` (legacy DOMException `.code === 9`) on the
+    first chunk. `writeChunked.ts`'s `pickWriter()` checks
+    `characteristic.properties` and picks whichever method is actually
+    supported (`write` preferred, `writeWithoutResponse` fallback) instead
+    of assuming.
 
-12. **A native `DOMException` structurally matches `PrinterError`** — it has
-    both a `.code` and a `.message` property, same as our type, just with a
-    legacy *numeric* `.code` (e.g. `9` for `NotSupportedError`) instead of
-    one of our string codes. This is exactly how gotcha #11 above was first
-    spotted: a raw DOMException slipped past `isPrinterError()`'s old
-    `'code' in error && 'message' in error` check, so `normalizePrintError()`
-    treated it as already-normalized and let a numeric code leak to
-    callers. `isPrinterError()` (`printerErrors.ts`) now also checks that
-    `code` is one of the actual `PrinterErrorCode` strings.
+12. **A native `DOMException` structurally matches `PrinterError`**
+    (`.code`+`.message`), just with a legacy *numeric* `.code` (e.g. `9`)
+    instead of our string codes. This is how gotcha #11 was first spotted:
+    a raw DOMException slipped past `isPrinterError()`'s old
+    `'code' in error && 'message' in error` check, letting
+    `normalizePrintError()` leak a numeric code to callers.
+    `isPrinterError()` (`printerErrors.ts`) now also checks `code` is an
+    actual `PrinterErrorCode` string.
 
-13. **`qz-tray`'s `package.json` has no `exports`/ESM entry**, just a legacy
-    `"main": "qz-tray.js"` (a UMD script) + a `"browser": {"path": false}`
-    field. Confirmed by reading the installed package directly: externalizing
-    it in the ESM build (`externalsType: 'module'`, same as
+13. **`qz-tray`'s `package.json` has no `exports`/ESM entry** — just legacy
+    `"main": "qz-tray.js"` (UMD) + `"browser": {"path": false}`.
+    Externalizing it in the ESM build (`externalsType: 'module'`, like
     `pointOfSaleExternals`) still works — webpack 5 emits a clean
-    `import{...}from"qz-tray"` and lets the *consumer's* bundler resolve it
-    via CJS interop — but this is a property of the consumer's tooling, not
-    guaranteed by `qz-tray` itself the way `@point-of-sale/*`'s own
-    `"browser"` exports condition is (see gotcha #10).
+    `import{...}from"qz-tray"` resolved via the *consumer's* bundler's CJS
+    interop — but unlike `@point-of-sale/*`'s own `"browser"` condition
+    (gotcha #10), that's the consumer's tooling behavior, not guaranteed by
+    the package itself.
 
-14. **`qz-tray.js` has one `require('path')` call**, in a Node-only branch
-    dead in browser bundles. Bundling it into the UMD standalone build
-    (`target: 'web'`) works with no extra webpack config: webpack 5's
-    default `resolve.aliasFields: ['browser']` (auto-on for `target: 'web'`)
+14. **`qz-tray.js` has one `require('path')` call**, in a dead Node-only
+    branch. Bundling it into the UMD build (`target: 'web'`) needs no extra
+    config — webpack 5's default `resolve.aliasFields: ['browser']`
     already honors qz-tray's own `package.json#browser: {"path": false}`
-    field and neutralizes the call — confirmed by a real `npm run build`
-    (the UMD bundle's stats show `path (ignored)` rather than a resolve
-    error). If this ever regresses, the fix is `resolve.fallback: { path:
-    false }` in `umdConfig()`.
+    and neutralizes it (confirmed: `npm run build`'s UMD stats show
+    `path (ignored)`, not a resolve error). If this regresses, fix is
+    `resolve.fallback: { path: false }` in `umdConfig()`.
 
 15. **`qz.printers.find(query)` returns a bare `string`, not `string[]`,
-    when `query` is given and matches** — only an array when called with no
-    query (`Promise<string[] | string>` in `@types/qz-tray`, confirmed live
-    against the installed package). `QzTransport.listPrinters()` normalizes
-    this with `Array.isArray(result) ? result : [result]`.
+    when `query` matches** — only an array with no query
+    (`Promise<string[] | string>`, confirmed live). `QzTransport.listPrinters()`
+    normalizes via `Array.isArray(result) ? result : [result]`.
 
-16. **`qz.websocket.connect()` rejects outright if a connection is already
-    open or still connecting** (`"An open connection with QZ Tray already
-    exists"` / `"...has not returned yet"`, read directly from qz-tray.js's
-    source) — every call site must guard with `qz.websocket.isActive()`
-    first. `QzTransport.ts`'s `ensureSocketOpen()` is the shared guard,
-    used by both `connect()` and `listPrinters()` since either can be
-    called first.
+16. **`qz.websocket.connect()` rejects if a connection is already
+    open/connecting** (`"An open connection with QZ Tray already exists"` /
+    `"...has not returned yet"`, from qz-tray.js's source) — every call
+    site must guard with `qz.websocket.isActive()` first. `QzTransport.ts`'s
+    `ensureSocketOpen()` is the shared guard for `connect()`/`listPrinters()`.
 
-17. **`qz.print()`'s `data` entries accept a raw `Uint8Array` directly**
-    with `flavor: 'base64'` — qz-tray's own internal `compatible.data()`
-    step base64-encodes `Uint8Array` data itself, via a hand-rolled,
-    binary-safe byte-loop `uint8ArrayToBase64()` (not `btoa`/
-    `String.fromCharCode` spread, so no call-stack risk on large
-    receipts) — confirmed by reading qz-tray.js's source. Don't hand-roll a
-    `Uint8Array -> base64` helper for this; `QzTransport.print()` passes
-    bytes straight through.
+17. **`qz.print()` accepts a raw `Uint8Array` directly** with
+    `flavor: 'base64'` — qz-tray's own `compatible.data()` base64-encodes
+    it internally via a hand-rolled, binary-safe byte-loop
+    `uint8ArrayToBase64()` (not `btoa`/spread, so no call-stack risk on
+    large receipts). Don't hand-roll a base64 helper — `QzTransport.print()`
+    passes bytes straight through.
 
-18. **QZ Tray has no protocol to auto-detect and no native OS device
-    picker.** Unlike Bluetooth (which detects `language`/`codepageMapping`
-    from a matched BLE profile in `profiles.ts`, and whose device picker is
-    a `requestDevice()` browser dialog), `QzTransport`'s reported
-    `PrinterInfo.language`/`codepageMapping` are just mirrors of whatever
-    `PrinterWrapperConfig` the transport was constructed with (confirmed:
-    `ReceiptBuilder.ts#buildReceiptBytes` always encodes using
-    `job.language ?? defaults.language`, never `PrinterInfo.language`, so
-    this is purely informational either way), and printer selection is a
-    consumer-built UI backed by `PrinterWrapper.listQzPrinters()`
-    (`qz.printers.find()`) instead of a browser-native picker.
+18. **QZ Tray has no protocol to auto-detect and no native device picker.**
+    Unlike Bluetooth (detects `language`/`codepageMapping` from a matched
+    BLE profile; picker is `requestDevice()`), `QzTransport`'s reported
+    `PrinterInfo.language`/`codepageMapping` just mirror the constructed
+    `PrinterWrapperConfig` (confirmed: `buildReceiptBytes` always encodes
+    via `job.language ?? defaults.language`, never `PrinterInfo.language` —
+    purely informational). Printer selection is a consumer-built UI via
+    `listQzPrinters()` (`qz.printers.find()`) instead.
 
-19. **`ReceiptPrinterEncoder`'s `cut()` defaults `feedBeforeCut` to `0`**
-    unless a *recognized* `printerModel` supplies its own `cutter.feed`
-    (confirmed by reading the installed encoder source: `feedBeforeCut =
-    printerModel?.cutter?.feed || options.feedBeforeCut` — the model's own
-    value always wins when present). With zero feed, the physical cutter
-    (positioned some distance below the print head on every thermal
-    printer) fires before the last printed content has advanced far enough
-    to clear it — slicing through it. Confirmed on real hardware: an Epson
-    TM-T20X-II via the QZ Tray transport cut text/barcodes/PDF417 too close
-    or clean through them, worse for taller elements. The model's exact
-    string (`epson-tm-t20x`) isn't in the encoder's known-models table
-    (throws `Unknown printer model`), so no auto-fallback applied — its
-    closest known relatives (`epson-tm-t20iii`/`epson-tm-t20iv`) both use
-    `cutter: { feed: 4 }`, and `4` is also the single most common
-    `cutter.feed` value across the encoder's entire model table (21 of 30
-    models). `config.ts`'s `DEFAULT_CONFIG.feedBeforeCut` is `4` for exactly
-    this reason — `ReceiptBuilder.ts` always passes it explicitly so real
-    prints never rely on the encoder's own zero default.
-    `PreviewRenderer.ts` mirrors the same gap before its "✂ cut" mark, per
-    the "preview and real print must stay behaviorally identical" rule
-    below.
+19. **`cut()` defaults `feedBeforeCut` to `0`** unless a recognized
+    `printerModel` supplies its own `cutter.feed` (confirmed:
+    `feedBeforeCut = printerModel?.cutter?.feed || options.feedBeforeCut` —
+    model's value always wins). With zero feed, the physical cutter fires
+    before the last content clears it, slicing through it — confirmed on
+    real hardware: an Epson TM-T20X-II via QZ Tray cut text/barcodes/PDF417
+    too close or clean through, worse for taller elements. `epson-tm-t20x`
+    isn't in the encoder's known-models table (`Unknown printer model`), so
+    no auto-fallback — its closest relatives (`epson-tm-t20iii`/`iv`) use
+    `cutter: { feed: 4 }`, also the single most common value across the
+    whole table (21/30 models). `DEFAULT_CONFIG.feedBeforeCut = 4` for this
+    reason — `ReceiptBuilder.ts` always passes it explicitly;
+    `PreviewRenderer.ts` mirrors the same gap before its "✂ cut" mark (see
+    the preview/print parity rule below).
 
-20. **`@bwip-js/browser` validates PDF417 capacity and throws when it
-    doesn't fit; the real `@point-of-sale/receipt-printer-encoder` does
-    not validate at all.** Confirmed live: encoding a 2000-character value
-    with `columns: 3` makes bwip-js reject it with
-    `pdf417insufficientCapacity`, while the real encoder happily emits
-    ESC/POS bytes requesting that same physically-impossible 3-column
-    layout, with whatever the printer firmware does with it left completely
-    unverified. This asymmetry is *why* `resolvePdf417Columns()`
-    (`Preview/pdf417.ts`, see gotcha #4's addendum) exists at all — it's
-    the shared bwip-js-backed capacity check both `ReceiptBuilder.ts` and
-    `PreviewRenderer.ts` run before committing to a non-auto `columns`
-    value, falling back to fully-automatic `columns` (the pre-existing,
-    always-safe behavior) whenever the preferred count doesn't fit. Never
-    pass a fixed/preferred PDF417 `columns` value straight to the real
-    encoder without running it through this check first.
+20. **bwip-js validates PDF417 capacity and throws when it doesn't fit; the
+    real encoder does not validate at all.** Confirmed: encoding 2000 chars
+    with `columns: 3` makes bwip-js reject with `pdf417insufficientCapacity`,
+    while the real encoder happily emits ESC/POS bytes requesting that same
+    impossible layout, leaving firmware behavior unverified. This is *why*
+    `resolvePdf417Columns()` (`Preview/pdf417.ts`, gotcha #4) exists: the
+    shared capacity check both `ReceiptBuilder.ts` and `PreviewRenderer.ts`
+    run before committing to a non-auto `columns`, falling back to
+    fully-automatic (the pre-existing, safe behavior) when it doesn't fit.
+    Never pass a fixed `columns` to the real encoder without this check.
 
-21. **bwip-js's own default PDF417 `eclevel` (error-correction level) is
-    NOT the same as the real encoder's default `errorlevel`.** Confirmed by
-    reading back the actual ESC/POS bytes: the real
-    `@point-of-sale/receipt-printer-encoder`, with `errorlevel` omitted,
-    encodes the error-correction-level command parameter as ASCII `"01"`
-    (level `1`). bwip-js, with `eclevel` omitted, renders at a height that
-    exactly matches its own `eclevel: 2` output — a different default.
-    Since a higher error-correction level needs more codewords (hence more
-    rows) for identical data/columns, this was a second, more subtle source
-    of preview-vs-print PDF417 shape mismatches — one that survived even
-    after `columns` was aligned (gotcha #20). `Preview/pdf417.ts`'s
-    `PDF417_ENCODER_DEFAULT_ERRORLEVEL` (`= 1`) is passed to bwip-js
-    whenever the job doesn't set `errorlevel` itself, in both
-    `buildPdf417()` and `resolvePdf417Columns()` — so an unset `errorlevel`
-    now renders/validates against the *same* level the real print silently
-    already assumes, instead of bwip-js's own different one. Both bwip-js
-    call sites must stay in sync on this (a mismatch between the capacity
-    *check* and the actual *render* would make the check validate against
-    the wrong assumption).
+21. **bwip-js's default PDF417 `eclevel` differs from the real encoder's
+    default `errorlevel`.** Confirmed by decoding actual ESC/POS bytes: the
+    real encoder, with `errorlevel` omitted, encodes level `1` (ASCII
+    `"01"`); bwip-js, with `eclevel` omitted, renders exactly like its own
+    `eclevel: 2`. Higher error-correction needs more codewords (more rows)
+    for identical data/columns — a second, subtler cause of preview-vs-print
+    shape mismatch that survived even after `columns` was aligned (gotcha
+    #20). `Preview/pdf417.ts`'s `toBwipOptions()` now applies
+    `DEFAULT_ERRORLEVEL` (`= 1`) uniformly whenever the job doesn't set
+    `errorlevel`, so both `buildPdf417()` and `resolvePdf417Columns()`
+    render/validate against the same level the real print already assumes.
 
 ## Coding conventions in this repo
 
-- **Extract data tables and error-handling into their own files** once a
-  file starts mixing "static data" with "logic that uses it" — e.g.
-  `src/interfaces/bluetooth/profiles.ts` (data) vs
-  `DefaultBluetoothTransport.ts`/`CompatBluetoothTransport.ts` (logic using
-  it), `src/interfaces/printerErrors.ts` (shared across transports). Keep orchestrator
-  files (`applyTextElement`, `renderPreviewCanvas`, `buildReceiptBytes`)
-  thin — they should read as "call step 1, step 2, step 3", not contain the
-  step implementations inline.
-- **Preview (`src/Preview/`) and real print (`ReceiptBuilder.ts`,
-  `src/Text/`) must stay behaviorally identical.** Whenever you change one,
-  check the other — `wrapText`, `justifyLine`, image sizing/dithering
-  (`imageDither.ts` reuses `Images/image.ts`) are already shared modules for
-  exactly this reason. New alignment/layout logic should be shared the same
-  way, not reimplemented per side.
-- **No test framework in this repo.** Verification is: `npm run build` +
-  `npx tsc --noEmit` (catches type errors) + one-off Node scripts that
-  `import('@point-of-sale/receipt-printer-encoder')` directly and inspect
-  the encoded byte output (this is how every encoder-interaction bug above
-  was actually confirmed, not guessed) + the Docker demo for real hardware
-  testing. When fixing an encoder-interaction bug, write a throwaway Node
-  script that reproduces it against the *real* installed library before
-  trusting a fix.
-- **Comments explain "why", not "what"**, especially around anything in the
-  gotchas list above — the reasoning isn't obvious from the code alone and
-  has already been lost/rediscovered once.
-- **Don't hand-type `\uXXXX` regex escapes directly into file content** —
-  this environment has repeatedly corrupted literal `\u0300-\u036f` (used in
-  `stripAccents()`) into raw combining Unicode characters when typed
-  directly in a Write/Edit call. If you need to (re)introduce such an
-  escape, write the file with a placeholder token, then patch it in via a
-  small Python script that constructs the string as `"\\u0300-\\u036f"` — a
-  Python string literal, not the file content directly — and confirm with
-  `cat -A` that the bytes are plain ASCII (`\`, `u`, `0`, `3`, `0`, `0`),
-  not `M-`-prefixed multi-byte garbage.
+- **Extract data/error-handling into their own files** once a file mixes
+  "static data" with "logic using it" — e.g. `bluetooth/profiles.ts` (data)
+  vs the two transports (logic), `printerErrors.ts` (shared). Keep
+  orchestrators (`applyTextElement`, `renderPreviewCanvas`,
+  `buildReceiptBytes`) thin — "call step 1, 2, 3", not inline
+  implementations.
+- **Preview and real print must stay behaviorally identical.** Changing
+  one → check the other. `wrapText`, `justifyLine`, image sizing/dithering
+  (`imageDither.ts` reuses `Images/image.ts`) are already shared for this
+  reason; new alignment/layout logic should be shared the same way.
+- **No test framework.** Verification: `npm run build` + `npx tsc --noEmit`
+  + throwaway Node scripts that `import('@point-of-sale/receipt-printer-encoder')`
+  and inspect real encoded bytes (how every encoder bug above was actually
+  confirmed) + the Docker demo for real hardware. Reproduce encoder bugs
+  against the *real* installed library before trusting a fix.
+- **Comments explain "why", not "what"** — especially the gotchas above;
+  the reasoning has already been lost/rediscovered once.
+- **Don't hand-type `\uXXXX` escapes directly** — this environment has
+  corrupted literal `\u0300-\u036f` (in `stripAccents()`) into raw
+  combining Unicode when typed directly. Write a placeholder, patch it via
+  a small Python script building `"\\u0300-\\u036f"` as a Python string
+  literal, and confirm with `cat -A` the bytes are plain ASCII (`\`, `u`,
+  `0`, `3`, `0`, `0`), not `M-`-prefixed garbage.
 
 ## Scope limits (intentional, not bugs)
 
-- Real barcode rendering (scannable, in both preview and print) covers
-  `symbology: 'code128'` and `'itf'`/`'interleaved-2-of-5'` only. Anything
-  else renders as a labeled placeholder box in the preview; the real print
-  path still sends it to the encoder as-is (works if the encoder/printer
-  supports that symbology, just isn't preview-visualized). `pdf417` is a
-  separate `PrintJobElement` type (its own encoder method, not a `barcode`
-  symbology) and always gets a real preview.
-- `@bwip-js/browser` (MIT) was added for PDF417 preview rendering — PDF417
-  needs compaction modes, a ~2800-entry codeword table and Reed-Solomon
-  error correction over GF(929), not safely hand-portable here with no way
-  to physically scan-test the result — and now also backs `code128.ts` and
-  `itf.ts`'s preview rendering (swapped in afterwards: same dependency was
-  already fully bundled, so reusing it for those two removed real
-  hand-ported code for zero extra bundle cost, and Code128 preview support
-  actually got *more* correct doing so — bwip-js auto-selects Subsets
-  A/B/C per spec, the hand-rolled version only ever did Subset B). A small,
-  newer, unproven npm package (matrix output, same pattern as
-  `qrcode-generator`) was passed over for PDF417 in favor of this actively
-  maintained, years-in-production library — at a real, measured cost: it
-  bundles its full 100+-symbology engine (only `code128`/`interleaved2of5`/
-  `pdf417` are used), which took the standalone UMD bundle from ~120KB to
-  **~1.06MB**. That cost is now justified across three symbologies, not
-  one. Preview correctness for all three depends entirely on this
-  dependency; print-side correctness does not (see gotcha #4).
-- `PaperWidth` is `'58mm' | '80mm' | '112mm'`. `'80mm'` values are
-  cross-checked against real hardware constants (576 dots); `'112mm'` is an
-  estimate, not yet hardware-verified.
-- The "barcode too wide for paper" warning in the preview is advisory only
-  — `printReceipt()` never blocks on it (confirmed product decision: the
-  width estimate is a heuristic, not a hardware guarantee, and false
-  positives should not prevent printing).
+- Real barcode rendering covers `code128` and `itf`/`interleaved-2-of-5`
+  only — other symbologies render as a placeholder box in preview (print
+  still sends them as-is; works if the encoder/printer supports it).
+  `pdf417` is a separate `PrintJobElement` (own encoder method, not a
+  `barcode` symbology) and always gets a real preview.
+- `@bwip-js/browser` (MIT) was added for PDF417 preview — compaction modes,
+  a ~2800-entry codeword table, Reed-Solomon over GF(929) aren't safely
+  hand-portable with no way to scan-test here. Later swapped in for
+  `code128.ts`/`itf.ts` too (same dependency already bundled → zero extra
+  cost, and Code128 got *more* correct: bwip-js auto-selects Subsets
+  A/B/C, the hand-rolled version only did Subset B). Chosen over a smaller,
+  newer, unproven matrix-output package (same pattern as
+  `qrcode-generator`) for its production track record — at a real cost:
+  its full 100+-symbology engine (only `code128`/`interleaved2of5`/
+  `pdf417` used) took the UMD bundle from ~120KB to **~1.06MB**, justified
+  across three symbologies now. Preview correctness for all three depends
+  on it; print-side correctness doesn't (gotcha #4).
+- `PaperWidth` is `'58mm' | '80mm' | '112mm'` — `80mm` cross-checked
+  against real hardware (576 dots); `112mm` is an estimate, not
+  hardware-verified.
+- The "too wide" preview warning is advisory only — `printReceipt()` never
+  blocks on it (the width estimate is a heuristic, not a guarantee; false
+  positives shouldn't block printing).
 - Justify/alignment padding is computed for any content, but only
-  pure-ASCII (32-126) lines actually get delivered via the padding-preserving
+  pure-ASCII (32-126) lines reach the printer via the padding-preserving
   `raw()` path; non-ASCII lines (only reachable with `stripAccents: false`)
-  fall back to unpadded `encoder.text()` and rely on the printer's native
-  align command.
-- Bluetooth and QZ Tray (unsigned/demo mode only) are implemented.
-  `src/interfaces/PrinterTransport.ts` is deliberately transport-agnostic —
-  exactly why adding `QzTransport.ts` required no change to that interface's
-  shape. A raw WebUSB transport
+  fall back to unpadded `encoder.text()` and the printer's native align
+  command.
+- Bluetooth and QZ Tray (unsigned/demo mode) are implemented.
+  `PrinterTransport.ts` is deliberately transport-agnostic — why adding
+  `QzTransport.ts` needed no interface change. A raw WebUSB transport
   ([WebUSBReceiptPrinter](https://github.com/NielsLeenheer/WebUSBReceiptPrinter))
-  was considered instead but dropped after a hands-on attempt didn't pan
-  out — QZ Tray (`src/interfaces/qz/`) supersedes that idea: it talks to an
-  already-installed, already-printer-paired desktop app over a local
-  websocket instead of implementing raw USB device/protocol handling
-  directly. No WebUSB transport is planned. QZ's certificate/signature
-  plumbing (`qz.security.setCertificatePromise`/`setSignaturePromise`,
-  needed for *silent*/pre-signed printing instead of QZ Tray's own
-  permission-dialog prompt) is explicitly out of scope — that requires a
-  private-key signing operation only a consumer's own backend can safely
-  do, and is left for a future addition.
-- Upstream WebBluetoothReceiptPrinter's "Cat printer" profile
-  (`language: 'meow'`, a different, non-ESC/POS/StarPRNT protocol) was not
-  ported into `profiles.ts` — `ReceiptPrinterEncoder` doesn't speak that
-  protocol, so there'd be nothing valid to print with it. Its `status`
-  characteristic + `listen()`/notification support wasn't ported either —
-  nothing in this project subscribes to printer status notifications today
+  was tried and dropped after a hands-on attempt didn't pan out; QZ Tray
+  (`src/interfaces/qz/`) supersedes it — talks to an already-installed,
+  already-paired desktop app over a local websocket instead of
+  implementing raw USB device/protocol handling. No WebUSB transport is
+  planned. QZ's certificate/signature plumbing (`setCertificatePromise`/
+  `setSignaturePromise`, needed for silent/pre-signed printing instead of
+  QZ Tray's own permission dialog) is out of scope — it needs a
+  private-key signing operation only a consumer's own backend can do; left
+  for a future addition.
+- Upstream's "Cat printer" profile (`language: 'meow'`, non-ESC/POS/
+  StarPRNT) wasn't ported — `ReceiptPrinterEncoder` doesn't speak that
+  protocol. Its `status` characteristic + `listen()`/notifications weren't
+  ported either — nothing here subscribes to printer status notifications
   (`PrinterWrapper`'s `onStatusChange` is this wrapper's own connect/print
   lifecycle events, unrelated to a physical notify characteristic).
 
@@ -443,13 +366,12 @@ These cost real debugging time. Don't reintroduce them.
 
 `docker compose up --build -d` → `http://localhost:3000/` (redirects to
 `/demo/`). Rebuild after **any** change under `src/`, `index.ts`,
-`config.ts`, `demo/`, or the Dockerfile itself — the image bakes a full
-`npm run build` in its `build` stage (see `Dockerfile`), it does not mount
-source live. Web Bluetooth works fine over `http://localhost:3000` — Chrome
-treats `localhost` as a secure context regardless of port. QZ Tray runs on
-the *browser's* host machine (`localhost:8181`/`8282` etc.) regardless of
-where the demo page itself is served from, so it works the same whether the
-demo HTML comes from Docker or anywhere else — but neither transport's real
-hardware path (a paired Bluetooth printer, or a running QZ Tray app with a
-paired printer) can be exercised inside this repo's own sandboxed
-environment; both require the user's own manual testing.
+`config.ts`, `demo/`, or the Dockerfile — the image bakes a full
+`npm run build` (see `Dockerfile`), no live source mount. Web Bluetooth
+works over `http://localhost:3000` (Chrome treats `localhost` as secure
+regardless of port). QZ Tray runs on the *browser's* host
+(`localhost:8181`/`8282`) regardless of where the demo page is served from
+— same either way. Neither transport's real hardware path (paired
+Bluetooth printer, or a running QZ Tray app with a paired printer) can be
+exercised in this sandboxed environment — both need the user's own manual
+testing.
