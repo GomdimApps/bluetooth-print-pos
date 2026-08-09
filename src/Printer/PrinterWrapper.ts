@@ -110,15 +110,7 @@ export class PrinterWrapper {
   async connect(options?: ConnectOptions): Promise<PrinterInfo> {
     this.emit('connecting')
     try {
-      let transport: PrinterTransport
-      let info: PrinterInfo
-      if (options?.transport === 'qz') {
-        transport = this.qz
-        info = await this.qz.connect(options.printerName)
-      } else {
-        transport = options?.compat ? this.compatBluetooth : this.bluetooth
-        info = await transport.connect()
-      }
+      const { transport, info } = await this.connectTransport(options)
       this.active = transport
       this.emit('connected', info)
       return info
@@ -126,6 +118,26 @@ export class PrinterWrapper {
       const printerError = error as PrinterError
       this.emit('error', null, printerError)
       throw printerError
+    }
+  }
+
+  /**
+   * One case per transport — adding a new one later (e.g. a future WebUSB
+   * transport) means adding a case here, not touching an if/else chain.
+   */
+  private async connectTransport(options?: ConnectOptions): Promise<{ transport: PrinterTransport; info: PrinterInfo }> {
+    switch (options?.transport) {
+      case 'qz': {
+        const info = await this.qz.connect(options.printerName)
+        return { transport: this.qz, info }
+      }
+
+      case 'bluetooth':
+      case undefined: {
+        const transport = options?.compat ? this.compatBluetooth : this.bluetooth
+        const info = await transport.connect()
+        return { transport, info }
+      }
     }
   }
 
