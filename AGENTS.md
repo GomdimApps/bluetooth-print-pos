@@ -83,7 +83,8 @@ src/Preview/
   pdf417.ts                     # wraps @bwip-js/browser for a real, scannable PDF417 (also picks the shared columns/errorlevel defaults — see gotchas #4/#20/#21)
   barcodeDrawing.ts             # shared BarcodeDrawing interface (code128.ts + itf.ts + pdf417.ts)
 
-demo/index.html                 # manual test page — loads ../build/printer-wrapper.js directly
+demo/index.html                 # manual test page — Tailwind CDN for styling, loads ../build/printer-wrapper.js + app.js
+demo/app.js                     # demo page's own logic (DOM wiring, form → PrintJob) — no build step, loaded as a plain <script src>
 Dockerfile / docker-compose.yml / nginx/default.conf   # serves demo/ + build/ on :3000
 ```
 
@@ -398,4 +399,9 @@ regardless of port). QZ Tray runs on the *browser's* host
 — same either way. Neither transport's real hardware path (paired
 Bluetooth printer, or a running QZ Tray app with a paired printer) can be
 exercised in this sandboxed environment — both need the user's own manual
-testing.
+testing. The demo page styles itself via the Tailwind CDN
+(`cdn.tailwindcss.com`) — unlike the rest of the demo, this needs the
+*browser* to reach the public internet even when everything else is served
+locally/via Docker; it's a dev-only convenience (Tailwind's own docs say
+not to use the CDN build in production), not something `build/` or the
+published package depends on.

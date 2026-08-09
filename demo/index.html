@@ -3,157 +3,78 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>PrinterWrapper — demo</title>
-<style>
-  :root {
-    color-scheme: light dark;
-    --bg: #f6f6f8;
-    --card: #ffffff;
-    --border: #e3e3e8;
-    --text: #17171a;
-    --muted: #6b6b76;
-    --accent: #2563eb;
-    --accent-text: #fff;
-    --ok-bg: #dcfce7; --ok-fg: #166534;
-    --fail-bg: #fee2e2; --fail-fg: #991b1b;
-    --warn-bg: #fef3c7; --warn-fg: #92400e;
-    --radius: 12px;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #0e0e11; --card: #18181c; --border: #2a2a30;
-      --text: #f1f1f3; --muted: #96969f; --accent: #3b82f6; --accent-text: #fff;
-      --ok-bg: #12311d; --ok-fg: #86efac;
-      --fail-bg: #391414; --fail-fg: #fca5a5;
-      --warn-bg: #3a2f0c; --warn-fg: #fcd34d;
-    }
-  }
-
-  * { box-sizing: border-box; }
-  body {
-    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-    background: var(--bg); color: var(--text);
-    max-width: 980px; margin: 0 auto; padding: 1.5rem 1rem 3rem;
-    line-height: 1.45;
-  }
-
-  h1 { font-size: 1.15rem; margin: 0 0 0.15rem; }
-  h2 { font-size: 0.95rem; margin: 0 0 0.75rem; }
-  .subtitle { color: var(--muted); font-size: 0.82rem; margin: 0 0 1.25rem; }
-  .subtitle code { font-size: 0.8em; }
-
-  .layout { display: grid; grid-template-columns: 1fr; gap: 1rem; align-items: start; }
-  @media (min-width: 860px) {
-    .layout { grid-template-columns: 1.15fr 0.85fr; }
-    .col-side { position: sticky; top: 1rem; }
-  }
-
-  .card {
-    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 1rem 1.1rem; margin-bottom: 1rem;
-  }
-
-  label { display: block; margin: 0.7rem 0 0.25rem; font-weight: 600; font-size: 0.85rem; }
-  label:first-of-type { margin-top: 0; }
-  .row { display: flex; gap: 0.6rem; }
-  .row > * { flex: 1; }
-
-  textarea, select, input[type=text], input[type=file] {
-    width: 100%; box-sizing: border-box; font: inherit; color: inherit;
-    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
-    padding: 0.45rem 0.6rem;
-  }
-  textarea { height: 4rem; resize: vertical; }
-
-  button {
-    font: inherit; padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer;
-    border: 1px solid var(--border); background: var(--card); color: var(--text);
-  }
-  button:disabled { cursor: not-allowed; opacity: 0.45; }
-  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
-  button.ghost { background: none; border-color: transparent; color: var(--accent); padding-left: 0; padding-right: 0; text-decoration: underline; }
-  .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.75rem; }
-
-  .tabs { display: flex; gap: 0.4rem; margin-bottom: 0.85rem; border-bottom: 1px solid var(--border); }
-  .tab { border: none; background: none; padding: 0.5rem 0.2rem; margin-right: 1rem; border-bottom: 2px solid transparent; border-radius: 0; color: var(--muted); font-weight: 600; }
-  .tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
-  .panel[hidden] { display: none; }
-
-  .pill { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.2rem 0.65rem; border-radius: 999px; font-size: 0.78rem; font-weight: 600; background: var(--warn-bg); color: var(--warn-fg); }
-  .pill.ok { background: var(--ok-bg); color: var(--ok-fg); }
-  .pill.fail { background: var(--fail-bg); color: var(--fail-fg); }
-  .pill.busy { background: var(--warn-bg); color: var(--warn-fg); }
-
-  .hint { color: var(--muted); font-size: 0.78rem; margin: 0.35rem 0 0; }
-
-  details { margin-top: 0.9rem; border-top: 1px solid var(--border); padding-top: 0.6rem; }
-  summary { cursor: pointer; font-weight: 600; font-size: 0.85rem; }
-  details[open] summary { margin-bottom: 0.3rem; }
-
-  #previewImg { max-width: 100%; border: 1px solid var(--border); border-radius: 8px; display: none; }
-  #previewPlaceholder { color: var(--muted); font-size: 0.85rem; }
-
-  #log {
-    background: #111318; color: #dcdce0; padding: 0.7rem 0.8rem; height: 11rem; overflow-y: auto;
-    font: 0.76rem/1.5 ui-monospace, "SFMono-Regular", Consolas, monospace; white-space: pre-wrap; border-radius: 8px;
-  }
-</style>
+<meta name="color-scheme" content="light dark" />
+<title>ESC/POS Print Test</title>
+<script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
+<body class="bg-gray-50 dark:bg-neutral-950 text-gray-900 dark:text-gray-100 font-sans leading-relaxed max-w-5xl mx-auto px-4 py-6 sm:py-10">
 
-<h1>PrinterWrapper — demo</h1>
-<p class="subtitle">Serve over <code>http(s)://</code>, not <code>file://</code> — e.g. <code>npx serve .</code>, then open <code>http://localhost:8000/demo/</code>.</p>
+<h1 class="text-lg font-semibold mb-1">ESC/POS Print Test</h1>
+<p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
+  Serve over <code class="text-xs">http(s)://</code>, not <code class="text-xs">file://</code> — e.g.
+  <code class="text-xs">npx serve .</code>, then open <code class="text-xs">http://localhost:8000/demo/</code>.
+</p>
 
-<div class="layout">
-  <div class="col-main">
+<div class="grid grid-cols-1 lg:grid-cols-[1.15fr_0.85fr] gap-4 items-start">
+  <div>
 
-    <div class="card">
-      <h2>Connect</h2>
-      <div class="tabs" role="tablist">
-        <button class="tab" id="tabBluetooth" role="tab" aria-selected="true">Bluetooth</button>
-        <button class="tab" id="tabQz" role="tab" aria-selected="false">QZ Tray</button>
+    <div class="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl p-4 mb-4">
+      <h2 class="text-sm font-semibold mb-3">Connect</h2>
+      <div class="flex gap-1 mb-3 border-b border-gray-200 dark:border-neutral-800" role="tablist">
+        <button
+          class="border-0 bg-transparent px-1 py-2 mr-4 border-b-2 border-transparent text-gray-500 dark:text-gray-400 font-semibold text-sm cursor-pointer aria-selected:text-gray-900 dark:aria-selected:text-gray-100 aria-selected:border-blue-600"
+          id="tabBluetooth" role="tab" aria-selected="true">Bluetooth</button>
+        <button
+          class="border-0 bg-transparent px-1 py-2 mr-4 border-b-2 border-transparent text-gray-500 dark:text-gray-400 font-semibold text-sm cursor-pointer aria-selected:text-gray-900 dark:aria-selected:text-gray-100 aria-selected:border-blue-600"
+          id="tabQz" role="tab" aria-selected="false">QZ Tray</button>
       </div>
 
-      <div class="panel" id="panelBluetooth">
-        <span class="pill" id="banner">Checking support…</span>
-        <div class="actions">
-          <button id="connectBtn" class="primary">Connect</button>
-          <button id="connectCompatBtn" class="ghost">Printer not showing up? Try compatibility mode</button>
+      <div id="panelBluetooth">
+        <span id="banner" class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold">Checking support…</span>
+        <div class="flex flex-wrap gap-2 items-center mt-3">
+          <button id="connectBtn" class="rounded-lg px-4 py-2 text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed bg-blue-600 dark:bg-blue-500 text-white">Connect</button>
+          <button id="connectCompatBtn" class="text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed text-blue-600 dark:text-blue-400 underline">Printer not showing up? Try compatibility mode</button>
         </div>
       </div>
 
-      <div class="panel" id="panelQz" hidden>
-        <p class="hint">Requires the <a href="https://qz.io" target="_blank" rel="noopener">QZ Tray</a> desktop app running, with a printer already paired to your OS.</p>
-        <div class="actions">
-          <button id="qzListBtn">List printers</button>
-          <select id="qzPrinterSelect" disabled><option value="">(list printers first)</option></select>
-          <button id="qzConnectBtn" class="primary" disabled>Connect</button>
+      <div id="panelQz" hidden>
+        <p class="text-xs text-gray-500 dark:text-gray-400">
+          Requires the <a href="https://qz.io" target="_blank" rel="noopener" class="underline">QZ Tray</a>
+          desktop app running, with a printer already paired to your OS.
+        </p>
+        <div class="flex flex-wrap gap-2 items-center mt-3">
+          <button id="qzListBtn" class="rounded-lg border border-gray-200 dark:border-neutral-800 px-4 py-2 text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">List printers</button>
+          <select id="qzPrinterSelect" disabled class="bg-gray-50 dark:bg-neutral-950 border border-gray-200 dark:border-neutral-800 rounded-lg px-2.5 py-2 text-sm disabled:opacity-40">
+            <option value="">(list printers first)</option>
+          </select>
+          <button id="qzConnectBtn" disabled class="rounded-lg px-4 py-2 text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed bg-blue-600 dark:bg-blue-500 text-white">Connect</button>
         </div>
       </div>
 
-      <div class="actions" style="border-top: 1px solid var(--border); margin-top: 1rem; padding-top: 0.85rem;">
-        <span class="pill" id="statusPill"><span id="status">idle</span></span>
-        <button id="disconnectBtn" disabled>Disconnect</button>
-        <button id="testPrintBtn" disabled>Test Print</button>
+      <div class="flex flex-wrap gap-2 items-center border-t border-gray-200 dark:border-neutral-800 mt-4 pt-3">
+        <span id="statusPill" class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold"><span id="status">idle</span></span>
+        <button id="disconnectBtn" disabled class="rounded-lg border border-gray-200 dark:border-neutral-800 px-4 py-2 text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">Disconnect</button>
+        <button id="testPrintBtn" disabled class="rounded-lg border border-gray-200 dark:border-neutral-800 px-4 py-2 text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">Test Print</button>
       </div>
     </div>
 
-    <div class="card">
-      <h2>Receipt</h2>
+    <div class="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl p-4 mb-4">
+      <h2 class="text-sm font-semibold mb-3">Receipt</h2>
 
-      <div class="row">
-        <div>
-          <label for="paperWidthSelect">Paper width</label>
-          <select id="paperWidthSelect" title="Scales text wrapping and image/barcode width for Print, Preview and Test Print">
+      <div class="flex gap-3">
+        <div class="flex-1">
+          <label for="paperWidthSelect" class="block mb-1 text-sm font-semibold">Paper width</label>
+          <select id="paperWidthSelect" title="Scales text wrapping and image/barcode width for Print, Preview and Test Print"
+            class="w-full bg-gray-50 dark:bg-neutral-950 border border-gray-200 dark:border-neutral-800 rounded-lg px-2.5 py-2 text-sm">
             <option value="" selected>Default (58mm)</option>
             <option value="58mm">58mm</option>
             <option value="80mm">80mm</option>
             <option value="112mm">112mm</option>
           </select>
         </div>
-        <div>
-          <label for="alignSelect">Alignment</label>
-          <select id="alignSelect">
+        <div class="flex-1">
+          <label for="alignSelect" class="block mb-1 text-sm font-semibold">Alignment</label>
+          <select id="alignSelect" class="w-full bg-gray-50 dark:bg-neutral-950 border border-gray-200 dark:border-neutral-800 rounded-lg px-2.5 py-2 text-sm">
             <option value="left" selected>Left</option>
             <option value="center">Center</option>
             <option value="right">Right</option>
@@ -162,263 +83,61 @@
         </div>
       </div>
 
-      <label for="textInput">Text</label>
-      <textarea id="textInput" placeholder="One line per row&#10;Line 2"></textarea>
-      <label><input type="checkbox" id="boldCheck" /> Bold</label>
+      <label for="textInput" class="block mt-3 mb-1 text-sm font-semibold">Text</label>
+      <textarea id="textInput" placeholder="One line per row&#10;Line 2"
+        class="w-full h-16 resize-y bg-gray-50 dark:bg-neutral-950 border border-gray-200 dark:border-neutral-800 rounded-lg px-2.5 py-2 text-sm"></textarea>
+      <label class="flex items-center gap-2 mt-2 text-sm font-medium"><input type="checkbox" id="boldCheck" /> Bold</label>
 
-      <label for="imageInput">Image</label>
-      <input type="file" id="imageInput" accept="image/*" />
+      <label for="imageInput" class="block mt-3 mb-1 text-sm font-semibold">Image</label>
+      <input type="file" id="imageInput" accept="image/*" class="w-full text-sm" />
 
-      <details>
-        <summary>Barcode, QR, PDF417</summary>
+      <details class="mt-4 border-t border-gray-200 dark:border-neutral-800 pt-3">
+        <summary class="cursor-pointer font-semibold text-sm">Barcode, QR, PDF417</summary>
 
-        <label for="barcodeInput">Barcode</label>
-        <div class="row">
-          <input type="text" id="barcodeInput" placeholder="e.g. 123456789012" />
-          <select id="barcodeSymbologySelect">
+        <label for="barcodeInput" class="block mt-3 mb-1 text-sm font-semibold">Barcode</label>
+        <div class="flex gap-2">
+          <input type="text" id="barcodeInput" placeholder="e.g. 123456789012"
+            class="flex-1 bg-gray-50 dark:bg-neutral-950 border border-gray-200 dark:border-neutral-800 rounded-lg px-2.5 py-2 text-sm" />
+          <select id="barcodeSymbologySelect" class="bg-gray-50 dark:bg-neutral-950 border border-gray-200 dark:border-neutral-800 rounded-lg px-2.5 py-2 text-sm">
             <option value="code128" selected>Code128</option>
             <option value="itf">ITF (boleto)</option>
           </select>
         </div>
 
-        <label for="qrInput">QR code</label>
-        <input type="text" id="qrInput" placeholder="e.g. https://example.com" />
+        <label for="qrInput" class="block mt-3 mb-1 text-sm font-semibold">QR code</label>
+        <input type="text" id="qrInput" placeholder="e.g. https://example.com"
+          class="w-full bg-gray-50 dark:bg-neutral-950 border border-gray-200 dark:border-neutral-800 rounded-lg px-2.5 py-2 text-sm" />
 
-        <label for="pdf417Input">PDF417</label>
-        <input type="text" id="pdf417Input" placeholder="e.g. a boarding pass payload" />
-        <label><input type="checkbox" id="pdf417TruncatedCheck" /> Truncated</label>
+        <label for="pdf417Input" class="block mt-3 mb-1 text-sm font-semibold">PDF417</label>
+        <input type="text" id="pdf417Input" placeholder="e.g. a boarding pass payload"
+          class="w-full bg-gray-50 dark:bg-neutral-950 border border-gray-200 dark:border-neutral-800 rounded-lg px-2.5 py-2 text-sm" />
+        <label class="flex items-center gap-2 mt-2 text-sm font-medium"><input type="checkbox" id="pdf417TruncatedCheck" /> Truncated</label>
       </details>
 
-      <div class="actions">
-        <button id="printBtn" class="primary" disabled>Print</button>
-        <button id="previewBtn">Preview</button>
+      <div class="flex flex-wrap gap-2 items-center mt-4">
+        <button id="printBtn" disabled class="rounded-lg px-4 py-2 text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed bg-blue-600 dark:bg-blue-500 text-white">Print</button>
+        <button id="previewBtn" class="rounded-lg border border-gray-200 dark:border-neutral-800 px-4 py-2 text-sm font-medium cursor-pointer">Preview</button>
       </div>
     </div>
 
   </div>
 
-  <div class="col-side">
-    <div class="card">
-      <h2>Preview</h2>
-      <p id="previewPlaceholder" class="hint">Renders exactly what would print, real scannable codes included — no printer needed.</p>
-      <img id="previewImg" alt="Receipt preview" />
+  <div class="lg:sticky lg:top-4">
+    <div class="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl p-4 mb-4">
+      <h2 class="text-sm font-semibold mb-3">Preview</h2>
+      <p id="previewPlaceholder" class="text-xs text-gray-500 dark:text-gray-400">Renders exactly what would print, real scannable codes included — no printer needed.</p>
+      <img id="previewImg" alt="Receipt preview" class="max-w-full border border-gray-200 dark:border-neutral-800 rounded-lg hidden" />
     </div>
 
-    <div class="card">
-      <h2>Log</h2>
-      <div id="log"></div>
+    <div class="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl p-4 mb-4">
+      <h2 class="text-sm font-semibold mb-3">Log</h2>
+      <div id="log" class="bg-neutral-950 text-neutral-200 p-3 h-44 overflow-y-auto font-mono text-xs leading-relaxed whitespace-pre-wrap rounded-lg"></div>
     </div>
   </div>
 </div>
 
 <script src="../build/printer-wrapper.js"></script>
-<script>
-  const banner = document.getElementById('banner')
-  const statusEl = document.getElementById('status')
-  const statusPill = document.getElementById('statusPill')
-  const logEl = document.getElementById('log')
-  const tabBluetooth = document.getElementById('tabBluetooth')
-  const tabQz = document.getElementById('tabQz')
-  const panelBluetooth = document.getElementById('panelBluetooth')
-  const panelQz = document.getElementById('panelQz')
-  const connectBtn = document.getElementById('connectBtn')
-  const connectCompatBtn = document.getElementById('connectCompatBtn')
-  const disconnectBtn = document.getElementById('disconnectBtn')
-  const qzListBtn = document.getElementById('qzListBtn')
-  const qzPrinterSelect = document.getElementById('qzPrinterSelect')
-  const qzConnectBtn = document.getElementById('qzConnectBtn')
-  const printBtn = document.getElementById('printBtn')
-  const testPrintBtn = document.getElementById('testPrintBtn')
-  const paperWidthSelect = document.getElementById('paperWidthSelect')
-  const textInput = document.getElementById('textInput')
-  const alignSelect = document.getElementById('alignSelect')
-  const boldCheck = document.getElementById('boldCheck')
-  const imageInput = document.getElementById('imageInput')
-  const barcodeInput = document.getElementById('barcodeInput')
-  const barcodeSymbologySelect = document.getElementById('barcodeSymbologySelect')
-  const qrInput = document.getElementById('qrInput')
-  const pdf417Input = document.getElementById('pdf417Input')
-  const pdf417TruncatedCheck = document.getElementById('pdf417TruncatedCheck')
-  const previewBtn = document.getElementById('previewBtn')
-  const previewImg = document.getElementById('previewImg')
-  const previewPlaceholder = document.getElementById('previewPlaceholder')
-
-  function log(message) {
-    const time = new Date().toLocaleTimeString()
-    logEl.textContent += `[${time}] ${message}\n`
-    logEl.scrollTop = logEl.scrollHeight
-  }
-
-  function selectTab(tab) {
-    const bluetooth = tab === 'bluetooth'
-    tabBluetooth.setAttribute('aria-selected', String(bluetooth))
-    tabQz.setAttribute('aria-selected', String(!bluetooth))
-    panelBluetooth.hidden = !bluetooth
-    panelQz.hidden = bluetooth
-  }
-  tabBluetooth.onclick = () => selectTab('bluetooth')
-  tabQz.onclick = () => selectTab('qz')
-
-  const supported = PrinterWrapper.isSupported()
-  banner.textContent = supported ? 'Web Bluetooth supported' : 'Web Bluetooth not supported — use Chrome or Edge'
-  banner.className = 'pill ' + (supported ? 'ok' : 'fail')
-  connectBtn.disabled = !supported
-  connectCompatBtn.disabled = !supported
-
-  const STATUS_PILL_CLASS = { connected: 'ok', printing: 'busy', connecting: 'busy', error: 'fail' }
-
-  const printer = new PrinterWrapper()
-
-  printer.onStatusChange((event) => {
-    statusEl.textContent = event.status
-    statusPill.className = 'pill ' + (STATUS_PILL_CLASS[event.status] || '')
-    log(`status: ${event.status}${event.info ? ` (${event.info.name})` : ''}`)
-    if (event.error) log(`error [${event.error.code}]: ${event.error.message}`)
-
-    const connected = printer.isConnected()
-    disconnectBtn.disabled = !connected
-    printBtn.disabled = !connected
-    testPrintBtn.disabled = !connected
-    connectBtn.disabled = connected || !supported
-    connectCompatBtn.disabled = connected || !supported
-    // QZ Tray works regardless of Web Bluetooth support, so it's not
-    // gated by `supported` — only by having already connected/listed.
-    qzListBtn.disabled = connected
-    qzConnectBtn.disabled = connected || qzPrinterSelect.value === ''
-  })
-
-  connectBtn.onclick = async () => {
-    try {
-      const info = await printer.connect()
-      log(`connected to ${info.name} (${info.language})`)
-    } catch (error) {
-      log(`failed to connect: ${error.message}`)
-    }
-  }
-
-  connectCompatBtn.onclick = async () => {
-    try {
-      const info = await printer.connect({ compat: true })
-      log(`connected (compatibility mode) to ${info.name} (${info.language})`)
-    } catch (error) {
-      log(`failed to connect: ${error.message}`)
-    }
-  }
-
-  qzListBtn.onclick = async () => {
-    try {
-      const names = await printer.listQzPrinters()
-      qzPrinterSelect.innerHTML = names.length
-        ? names.map((n) => `<option value="${n}">${n}</option>`).join('')
-        : '<option value="">(no printers found)</option>'
-      qzPrinterSelect.disabled = names.length === 0
-      qzConnectBtn.disabled = names.length === 0
-      log(`found ${names.length} QZ printer(s)`)
-    } catch (error) {
-      log(`failed to list QZ printers: ${error.message}`)
-    }
-  }
-
-  qzPrinterSelect.onchange = () => {
-    qzConnectBtn.disabled = qzPrinterSelect.value === ''
-  }
-
-  qzConnectBtn.onclick = async () => {
-    try {
-      const info = await printer.connect({ transport: 'qz', printerName: qzPrinterSelect.value })
-      log(`connected (QZ) to ${info.name}`)
-    } catch (error) {
-      log(`failed to connect (QZ): ${error.message}`)
-    }
-  }
-
-  disconnectBtn.onclick = async () => {
-    await printer.disconnect()
-    log('disconnected')
-  }
-
-  function buildAsciiRuler() {
-    return '1234567890 ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-  }
-
-  function selectedPaperWidth() {
-    return paperWidthSelect.value || undefined
-  }
-
-  testPrintBtn.onclick = async () => {
-    try {
-      await printer.printReceipt({
-        paperWidth: selectedPaperWidth(),
-        content: [
-          { type: 'text', value: 'TEST PRINT', align: 'center', bold: true },
-          { type: 'rule' },
-          { type: 'text', value: `Date/Time: ${new Date().toLocaleString()}` },
-          { type: 'text', value: buildAsciiRuler() },
-          { type: 'rule' },
-          { type: 'text', value: 'END OF TEST', align: 'center' },
-          { type: 'newline', lines: 2 },
-        ],
-        cut: 'full',
-      })
-      log('test print sent')
-    } catch (error) {
-      log(`test print failed: ${error.message}`)
-    }
-  }
-
-  function buildJobFromForm() {
-    const lines = textInput.value.split('\n').map((l) => l.trim()).filter(Boolean)
-    const align = alignSelect.value
-    const bold = boldCheck.checked
-    const file = imageInput.files[0]
-    const barcodeValue = barcodeInput.value.trim()
-    const qrValue = qrInput.value.trim()
-    const pdf417Value = pdf417Input.value.trim()
-
-    const content = []
-    if (file) content.push({ type: 'image', source: file, align: 'center' })
-    for (const line of lines) content.push({ type: 'text', value: line, align, bold })
-    if (barcodeValue) content.push({ type: 'barcode', value: barcodeValue, symbology: barcodeSymbologySelect.value })
-    if (qrValue) content.push({ type: 'qrcode', value: qrValue })
-    if (pdf417Value) content.push({ type: 'pdf417', value: pdf417Value, truncated: pdf417TruncatedCheck.checked })
-    content.push({ type: 'newline', lines: 2 })
-
-    return content.length > 0 ? { paperWidth: selectedPaperWidth(), content, cut: 'full' } : null
-  }
-
-  printBtn.onclick = async () => {
-    const job = buildJobFromForm()
-    if (!job) {
-      log('nothing to print — fill in the text, image, barcode or QR field')
-      return
-    }
-
-    try {
-      await printer.printReceipt(job)
-      log('receipt sent')
-    } catch (error) {
-      log(`failed to print: ${error.message}`)
-    }
-  }
-
-  previewBtn.onclick = async () => {
-    const job = buildJobFromForm()
-    if (!job) {
-      log('nothing to preview — fill in the text, image, barcode or QR field')
-      return
-    }
-
-    try {
-      const preview = await printer.renderPreview(job)
-      previewImg.src = preview.dataUrl
-      previewImg.style.display = 'block'
-      previewPlaceholder.style.display = 'none'
-      log(`preview rendered (${preview.width}x${preview.height})`)
-    } catch (error) {
-      log(`failed to render preview: ${error.message}`)
-    }
-  }
-</script>
+<script src="app.js"></script>
 
 </body>
 </html>
