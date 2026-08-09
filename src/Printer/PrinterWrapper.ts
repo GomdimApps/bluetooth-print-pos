@@ -1,6 +1,7 @@
 import { resolveConfig } from '../../config'
 import { DefaultBluetoothTransport, isBluetoothSupported } from '../interfaces/bluetooth/DefaultBluetoothTransport'
 import { CompatBluetoothTransport } from '../interfaces/bluetooth/CompatBluetoothTransport'
+import { QzTransport, isQzSupported } from '../interfaces/qz/QzTransport'
 import { buildReceiptBytes } from './ReceiptBuilder'
 import { normalizePrintError } from '../interfaces/printerErrors'
 import { renderPreviewCanvas } from '../Preview/PreviewRenderer'
@@ -18,15 +19,26 @@ import type {
 
 type Unsubscribe = () => void
 
-export interface ConnectOptions {
-  /**
-   * Uses a broader Bluetooth device picker (`acceptAllDevices: true`) and a
-   * larger set of known printer profiles instead of the default's small,
-   * filtered picker. Try this when a printer doesn't show up, or doesn't
-   * connect, with the default `connect()`. See ../interfaces/bluetooth/CompatBluetoothTransport.ts.
-   */
-  compat?: boolean
-}
+export type ConnectOptions =
+  | {
+      transport?: 'bluetooth'
+      /**
+       * Uses a broader Bluetooth device picker (`acceptAllDevices: true`) and a
+       * larger set of known printer profiles instead of the default's small,
+       * filtered picker. Try this when a printer doesn't show up, or doesn't
+       * connect, with the default `connect()`. See ../interfaces/bluetooth/CompatBluetoothTransport.ts.
+       */
+      compat?: boolean
+    }
+  | {
+      transport: 'qz'
+      /**
+       * Target QZ printer name, normally chosen from a prior
+       * `listQzPrinters()` call. Falls back to QZ Tray's own default
+       * printer (`qz.printers.getDefault()`) when omitted.
+       */
+      printerName?: string
+    }
 
 /**
  * Public API of the wrapper. This is what gets exposed as `window.PrinterWrapper`
@@ -40,17 +52,33 @@ export class PrinterWrapper {
   private readonly config: PrinterWrapperConfig
   private readonly bluetooth = new DefaultBluetoothTransport()
   private readonly compatBluetooth = new CompatBluetoothTransport()
+  private readonly qz: QzTransport
   private active: PrinterTransport | null = null
   private readonly listeners = new Set<(event: PrinterStatusEvent) => void>()
   private printing = false
 
   constructor(config?: PrinterWrapperConfigInput) {
     this.config = resolveConfig(config)
+    // Must be assigned here in the constructor body, not as a class-field
+    // initializer above — field initializers run in declaration order
+    // before any of the constructor's own statements, so `this.config`
+    // wouldn't be populated yet if this were one too.
+    this.qz = new QzTransport({ language: this.config.language, codepageMapping: this.config.codepageMapping })
   }
 
   /** true if the current browser supports Web Bluetooth. Never throws. */
   static isSupported(): boolean {
     return isBluetoothSupported()
+  }
+
+  /**
+   * true if this environment has WebSocket support (what the QZ Tray
+   * transport is built on). Does NOT mean the QZ Tray desktop app
+   * (https://qz.io) is actually installed/running — only connect() can
+   * determine that. Never throws.
+   */
+  static isQzSupported(): boolean {
+    return isQzSupported()
   }
 
   /** Subscribes to status/error changes. Returns a function to cancel the subscription. */
@@ -68,19 +96,29 @@ export class PrinterWrapper {
   }
 
   /**
-   * Connects to the Bluetooth printer. MUST be called from a user gesture
-   * (e.g. inside an onclick) — this is a requirement of the browser's own
-   * Web Bluetooth API, not a limitation of this wrapper.
+   * Connects to a printer. Defaults to Bluetooth, which MUST be called from
+   * a user gesture (e.g. inside an onclick) — a requirement of the
+   * browser's own Web Bluetooth API, not a limitation of this wrapper.
    *
-   * Pass `{ compat: true }` to reach printers the default device picker
-   * doesn't list — see `ConnectOptions.compat`.
+   * Pass `{ compat: true }` to reach Bluetooth printers the default device
+   * picker doesn't list — see `ConnectOptions.compat`.
+   *
+   * Pass `{ transport: 'qz', printerName }` to connect through the QZ Tray
+   * desktop app instead — see `listQzPrinters()` to discover `printerName`,
+   * since QZ has no native OS device picker the way Web Bluetooth does.
    */
   async connect(options?: ConnectOptions): Promise<PrinterInfo> {
-    const transport = options?.compat ? this.compatBluetooth : this.bluetooth
-
     this.emit('connecting')
     try {
-      const info = await transport.connect()
+      let transport: PrinterTransport
+      let info: PrinterInfo
+      if (options?.transport === 'qz') {
+        transport = this.qz
+        info = await this.qz.connect(options.printerName)
+      } else {
+        transport = options?.compat ? this.compatBluetooth : this.bluetooth
+        info = await transport.connect()
+      }
       this.active = transport
       this.emit('connected', info)
       return info
@@ -89,6 +127,18 @@ export class PrinterWrapper {
       this.emit('error', null, printerError)
       throw printerError
     }
+  }
+
+  /**
+   * Lists printer names QZ Tray knows about (opens the QZ websocket session
+   * if not already open — safe to call before `connect()`, and shares the
+   * same underlying QZ transport instance so the session it opens is
+   * reused by a later `connect({ transport: 'qz' })` call). Use this to
+   * populate a picker UI, since QZ has no native OS device-selection
+   * dialog the way Web Bluetooth's `requestDevice()` does.
+   */
+  async listQzPrinters(query?: string): Promise<string[]> {
+    return this.qz.listPrinters(query)
   }
 
   async disconnect(): Promise<void> {

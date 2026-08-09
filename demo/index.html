@@ -48,6 +48,19 @@
 </fieldset>
 
 <fieldset>
+  <legend>QZ Tray Connection</legend>
+  <p class="note">
+    Requires the <a href="https://qz.io" target="_blank" rel="noopener">QZ Tray</a> desktop app
+    installed and running locally, with at least one printer already paired to your OS. Unsigned/demo
+    mode — QZ Tray will show its own permission popup for each connection/print request.
+  </p>
+  <button id="qzListBtn">List QZ printers</button>
+  <select id="qzPrinterSelect" disabled><option value="">(list printers first)</option></select>
+  <button id="qzConnectBtn" disabled>Connect (QZ)</button>
+  <p class="note">Disconnect/Print/Preview/Test Print above are shared — they work the same regardless of which transport connected.</p>
+</fieldset>
+
+<fieldset>
   <legend>Receipt</legend>
   <label for="paperWidthSelect">Paper width</label>
   <select id="paperWidthSelect">
@@ -123,6 +136,9 @@
   const connectBtn = document.getElementById('connectBtn')
   const connectCompatBtn = document.getElementById('connectCompatBtn')
   const disconnectBtn = document.getElementById('disconnectBtn')
+  const qzListBtn = document.getElementById('qzListBtn')
+  const qzPrinterSelect = document.getElementById('qzPrinterSelect')
+  const qzConnectBtn = document.getElementById('qzConnectBtn')
   const printBtn = document.getElementById('printBtn')
   const testPrintBtn = document.getElementById('testPrintBtn')
   const paperWidthSelect = document.getElementById('paperWidthSelect')
@@ -165,6 +181,10 @@
     testPrintBtn.disabled = !connected
     connectBtn.disabled = connected || !supported
     connectCompatBtn.disabled = connected || !supported
+    // QZ Tray works regardless of Web Bluetooth support, so it's not
+    // gated by `supported` — only by having already connected/listed.
+    qzListBtn.disabled = connected
+    qzConnectBtn.disabled = connected || qzPrinterSelect.value === ''
   })
 
   connectBtn.onclick = async () => {
@@ -182,6 +202,33 @@
       log(`connected (compatibility mode) to ${info.name} (${info.language})`)
     } catch (error) {
       log(`failed to connect: ${error.message}`)
+    }
+  }
+
+  qzListBtn.onclick = async () => {
+    try {
+      const names = await printer.listQzPrinters()
+      qzPrinterSelect.innerHTML = names.length
+        ? names.map((n) => `<option value="${n}">${n}</option>`).join('')
+        : '<option value="">(no printers found)</option>'
+      qzPrinterSelect.disabled = names.length === 0
+      qzConnectBtn.disabled = names.length === 0
+      log(`found ${names.length} QZ printer(s)`)
+    } catch (error) {
+      log(`failed to list QZ printers: ${error.message}`)
+    }
+  }
+
+  qzPrinterSelect.onchange = () => {
+    qzConnectBtn.disabled = qzPrinterSelect.value === ''
+  }
+
+  qzConnectBtn.onclick = async () => {
+    try {
+      const info = await printer.connect({ transport: 'qz', printerName: qzPrinterSelect.value })
+      log(`connected (QZ) to ${info.name}`)
+    } catch (error) {
+      log(`failed to connect (QZ): ${error.message}`)
     }
   }
 

@@ -44,8 +44,9 @@ export interface PrinterWrapperConfig {
 export type PrinterWrapperConfigInput = Partial<PrinterWrapperConfig> & { paperWidth?: PaperWidth }
 
 export interface PrinterInfo {
-  type: 'bluetooth'
+  type: 'bluetooth' | 'qz'
   name: string
+  /** For type: 'qz', this is just the QZ printer name — QZ has no separate device id the way Bluetooth's device.id does. */
   id: string
   language: 'esc-pos' | 'star-prnt' | 'star-line'
   codepageMapping?: unknown

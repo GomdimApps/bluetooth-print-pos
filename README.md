@@ -1,9 +1,10 @@
 # bluetooth-print-pos
 
-A communication wrapper for thermal receipt printers over **Web Bluetooth**.
-Builds receipts (text, images, barcodes, QR codes, PDF417) from a JSON-serializable
-object and sends them to the printer — the caller never needs to know
-anything about ESC/POS encoding.
+A communication wrapper for thermal receipt printers, over **Web
+Bluetooth** or via the **[QZ Tray](https://qz.io)** desktop app (for
+USB/OS-registered printers). Builds receipts (text, images, barcodes, QR
+codes, PDF417) from a JSON-serializable object and sends them to the
+printer — the caller never needs to know anything about ESC/POS encoding.
 
 It wraps [`receipt-printer-encoder`](https://github.com/NielsLeenheer/ReceiptPrinterEncoder)
 from the [@point-of-sale](https://point-of-sale.dev) ecosystem to build the
@@ -11,7 +12,11 @@ ESC/POS commands. The Web Bluetooth connectivity itself — device discovery,
 profile matching, chunked writes — is this project's own code (ported from
 [`WebBluetoothReceiptPrinter`](https://github.com/NielsLeenheer/WebBluetoothReceiptPrinter),
 see [src/interfaces/bluetooth/](src/interfaces/bluetooth/)), not an external
-dependency.
+dependency. QZ Tray connectivity uses the official [`qz-tray`](https://www.npmjs.com/package/qz-tray)
+client library (see [src/interfaces/qz/](src/interfaces/qz/)) to talk to the
+QZ Tray desktop app, which the user installs and pairs with their printer(s)
+separately — this project only hands it the same ESC/POS bytes it already
+builds for Bluetooth.
 
 Runs **entirely in the browser, with no Node at runtime** — Node is only
 used at build time to produce the artifacts. It also includes a
@@ -35,9 +40,10 @@ There are two ways to use it, covered in detail below:
 This is for a plain HTML page or a webview: no bundler, no `npm install`,
 no build step at all on the consuming side. The published package already
 ships a prebuilt, self-contained UMD bundle at
-`build/printer-wrapper.js` — it bundles `@point-of-sale/receipt-printer-encoder`
-and all of this project's own Bluetooth connectivity code internally, so
-**you don't need to install or reference anything else yourself**.
+`build/printer-wrapper.js` — it bundles `@point-of-sale/receipt-printer-encoder`,
+`qz-tray`, and all of this project's own Bluetooth connectivity code
+internally, so **you don't need to install or reference anything else
+yourself**.
 
 Grab that one file — either from
 `node_modules/bluetooth-print-pos/build/printer-wrapper.js` after
@@ -101,13 +107,14 @@ async function onPrintClick() {
 }
 ```
 
-The published ESM build treats `@point-of-sale/receipt-printer-encoder` as
-an external rather than bundling it, so it comes along as a regular npm
-`dependency` and your own bundler (Vite/webpack) resolves and dedupes it
-normally. Bluetooth connectivity is this project's own source, so it's
-always bundled in either build. Full TypeScript declarations (`PrintJob`,
-`PrintJobElement`, `PrinterStatusEvent`, etc.) ship in `build/types` — the
-`import` above already gives you autocomplete.
+The published ESM build treats `@point-of-sale/receipt-printer-encoder` and
+`qz-tray` as externals rather than bundling them, so they come along as
+regular npm `dependencies` and your own bundler (Vite/webpack) resolves and
+dedupes them normally — `npm install` will pull `qz-tray` in for you as a
+transitive dependency either way. Bluetooth connectivity is this project's
+own source, so it's always bundled in either build. Full TypeScript
+declarations (`PrintJob`, `PrintJobElement`, `PrinterStatusEvent`, etc.)
+ship in `build/types` — the `import` above already gives you autocomplete.
 
 ### `require()` usage — same self-contained bundle as standalone
 
@@ -136,13 +143,17 @@ library, two different bundles depending on how you pull it in.
 
 ```ts
 class PrinterWrapper {
-  static isSupported(): boolean
+  static isSupported(): boolean     // Web Bluetooth support
+  static isQzSupported(): boolean   // WebSocket support (not whether QZ Tray itself is running — only connect() can tell you that)
 
   constructor(config?: PrinterWrapperConfigInput)
 
   onStatusChange(cb: (event: PrinterStatusEvent) => void): () => void
 
-  connect(options?: { compat?: boolean }): Promise<PrinterInfo>     // must be called from a user click
+  connect(options?: { transport?: 'bluetooth'; compat?: boolean } | { transport: 'qz'; printerName?: string }): Promise<PrinterInfo>
+  // Bluetooth (default) must be called from a user click. QZ Tray has no native device
+  // picker — use listQzPrinters() first to get a printerName.
+  listQzPrinters(query?: string): Promise<string[]>   // QZ Tray only — opens the QZ session if needed
   disconnect(): Promise<void>
   isConnected(): boolean
   getPrinterInfo(): PrinterInfo | null
@@ -221,6 +232,39 @@ await printer.connect({ compat: true })
 Try this when a printer doesn't show up, or doesn't connect, with the plain
 `connect()`. It reaches more hardware (including generic FF00-profile and
 PrinterBT/innoPrint-based printers) at the cost of a noisier device picker.
+
+### QZ Tray transport (USB and other OS-registered printers)
+
+If Web Bluetooth isn't an option — a USB-only printer, or a browser without
+Bluetooth support — connect through [QZ Tray](https://qz.io) instead. Install
+the QZ Tray desktop app once and pair it with your printer(s) directly; this
+library then just hands it the same ESC/POS bytes over QZ Tray's local
+websocket API.
+
+QZ has no native OS device picker the way Web Bluetooth does, so list
+printers yourself and let the user (or your own logic) pick one:
+
+```ts
+const printerNames = await printer.listQzPrinters() // opens the QZ Tray session if needed
+const info = await printer.connect({ transport: 'qz', printerName: printerNames[0] })
+console.log(`Connected (QZ) to ${info.name}`)
+
+await printer.printReceipt({ content: [{ type: 'text', value: 'Hello from QZ Tray' }] })
+```
+
+Omit `printerName` to fall back to QZ Tray's own default printer:
+
+```ts
+await printer.connect({ transport: 'qz' })
+```
+
+**Unsigned/demo mode only**: this library doesn't configure QZ Tray's
+certificate/signature plumbing (`qz.security.setCertificatePromise`/
+`setSignaturePromise`), since that requires a private-key signing operation
+only your own backend can safely perform. Without it, QZ Tray shows its own
+permission popup on each connect/print request instead of printing silently
+— see [QZ Tray's own docs](https://qz.io/wiki/2.0-signing-messages) if you
+need signed/silent printing.
 
 ## Print preview
 
@@ -313,3 +357,9 @@ npm run build:dev          # same as `build`, in watch mode
 ## License
 
 MIT
+
+Note: the standalone UMD bundle (`build/printer-wrapper.js`) statically
+includes [`qz-tray`](https://www.npmjs.com/package/qz-tray), which is
+licensed **LGPL-2.1** (every other bundled dependency is MIT). If you
+redistribute that bundle, check LGPL-2.1's compliance requirements for your
+use case.

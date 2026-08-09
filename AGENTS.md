@@ -6,22 +6,31 @@ quirks below.
 
 ## What this is
 
-`bluetooth-print-pos` — a wrapper around ESC/POS receipt printing over Web
-Bluetooth, runnable **entirely in the browser, no Node at runtime**. It
-ships in two forms from the same source, built by `webpack.config.js`
-(array of two configs):
+`bluetooth-print-pos` — a wrapper around ESC/POS receipt printing, runnable
+**entirely in the browser, no Node at runtime**. Two independent transports
+are supported behind the same `PrinterTransport` interface: Web Bluetooth
+(talks directly to the printer) and QZ Tray (talks to the
+[QZ Tray](https://qz.io) desktop app over its local websocket API, which in
+turn talks to an OS-registered printer — USB or otherwise). It ships in two
+forms from the same source, built by `webpack.config.js` (array of two
+configs):
 
 - **Standalone UMD** (`build/printer-wrapper.js`) — fully self-contained,
-  bundles `@point-of-sale/*`, `canvas-dither`, `qrcode-generator` inside.
-  Drop into a `<script>` tag, no bundler, no `npm install` on the consumer
-  side. `output.library.type: 'umd'`, `export: 'default'` so
+  bundles `@point-of-sale/*`, `canvas-dither`, `qrcode-generator`, `qz-tray`
+  inside. Drop into a `<script>` tag, no bundler, no `npm install` on the
+  consumer side. `output.library.type: 'umd'`, `export: 'default'` so
   `window.PrinterWrapper` is the class directly, not `{default: ...}`.
 - **ESM** (`build/printer-wrapper.esm.js`) — for bundler consumers
-  (Vite/webpack). `@point-of-sale/*` are `externals` here (regex
-  `/^@point-of-sale\//` in webpack.config.js) so they come in as the
-  consumer's own npm `dependencies` instead of being duplicated —
-  `canvas-dither`/`qrcode-generator` stay bundled (too small to bother
-  externalizing).
+  (Vite/webpack). `@point-of-sale/*` and `qz-tray` are `externals` here
+  (`pointOfSaleExternals`/`qzTrayExternals` in webpack.config.js) so they
+  come in as the consumer's own npm `dependencies` instead of being
+  duplicated — `canvas-dither`/`qrcode-generator` stay bundled (too small to
+  bother externalizing). Unlike `@point-of-sale/*`, `qz-tray` has no
+  `package.json#exports`/ESM entry (just a legacy `main` UMD script), so
+  this emits a bare `import ... from 'qz-tray'` that relies on the
+  *consumer's own bundler* resolving a CJS/UMD package via CJS interop —
+  confirmed working with webpack 5's default externals handling in this
+  repo's own build, see gotcha #13.
 - `package.json#exports` routes `require` → UMD, `import` → ESM. So
   `require('bluetooth-print-pos')` in a Vue2/CJS project gets the exact
   same self-contained bundle as the `<script>` tag, not the ESM one.
@@ -44,7 +53,7 @@ src/types/point-of-sale.d.ts    # hand-written ambient types for @point-of-sale/
 src/types/canvas-dither.d.ts    # same, for canvas-dither
 
 src/interfaces/
-  PrinterTransport.ts           # transport-agnostic interface (getInfo/connect/disconnect/isConnected/print) — kept generic so a future WebUSB transport can implement it too
+  PrinterTransport.ts           # transport-agnostic interface (getInfo/connect/disconnect/isConnected/print) — implemented by both the Bluetooth transports and QzTransport
   printerErrors.ts              # shared PrinterError normalization (toPrinterError/normalizeConnectError/normalizePrintError)
 
   bluetooth/
@@ -52,6 +61,9 @@ src/interfaces/
     writeChunked.ts             # chunked BLE characteristic writes (messageSize/sleepAfterCommand per profile)
     DefaultBluetoothTransport.ts   # default transport — requestDevice({ filters }) restricted to known profiles
     CompatBluetoothTransport.ts    # fallback transport — acceptAllDevices + post-connect profile matching
+
+  qz/
+    QzTransport.ts               # QZ Tray transport — talks to the QZ Tray desktop app over its local websocket API, hands it the same ESC/POS bytes Bluetooth uses
 
 src/Printer/
   PrinterWrapper.ts             # public API class — connect/disconnect/printReceipt/printRaw/renderPreview
@@ -198,6 +210,61 @@ These cost real debugging time. Don't reintroduce them.
     callers. `isPrinterError()` (`printerErrors.ts`) now also checks that
     `code` is one of the actual `PrinterErrorCode` strings.
 
+13. **`qz-tray`'s `package.json` has no `exports`/ESM entry**, just a legacy
+    `"main": "qz-tray.js"` (a UMD script) + a `"browser": {"path": false}`
+    field. Confirmed by reading the installed package directly: externalizing
+    it in the ESM build (`externalsType: 'module'`, same as
+    `pointOfSaleExternals`) still works — webpack 5 emits a clean
+    `import{...}from"qz-tray"` and lets the *consumer's* bundler resolve it
+    via CJS interop — but this is a property of the consumer's tooling, not
+    guaranteed by `qz-tray` itself the way `@point-of-sale/*`'s own
+    `"browser"` exports condition is (see gotcha #10).
+
+14. **`qz-tray.js` has one `require('path')` call**, in a Node-only branch
+    dead in browser bundles. Bundling it into the UMD standalone build
+    (`target: 'web'`) works with no extra webpack config: webpack 5's
+    default `resolve.aliasFields: ['browser']` (auto-on for `target: 'web'`)
+    already honors qz-tray's own `package.json#browser: {"path": false}`
+    field and neutralizes the call — confirmed by a real `npm run build`
+    (the UMD bundle's stats show `path (ignored)` rather than a resolve
+    error). If this ever regresses, the fix is `resolve.fallback: { path:
+    false }` in `umdConfig()`.
+
+15. **`qz.printers.find(query)` returns a bare `string`, not `string[]`,
+    when `query` is given and matches** — only an array when called with no
+    query (`Promise<string[] | string>` in `@types/qz-tray`, confirmed live
+    against the installed package). `QzTransport.listPrinters()` normalizes
+    this with `Array.isArray(result) ? result : [result]`.
+
+16. **`qz.websocket.connect()` rejects outright if a connection is already
+    open or still connecting** (`"An open connection with QZ Tray already
+    exists"` / `"...has not returned yet"`, read directly from qz-tray.js's
+    source) — every call site must guard with `qz.websocket.isActive()`
+    first. `QzTransport.ts`'s `ensureSocketOpen()` is the shared guard,
+    used by both `connect()` and `listPrinters()` since either can be
+    called first.
+
+17. **`qz.print()`'s `data` entries accept a raw `Uint8Array` directly**
+    with `flavor: 'base64'` — qz-tray's own internal `compatible.data()`
+    step base64-encodes `Uint8Array` data itself, via a hand-rolled,
+    binary-safe byte-loop `uint8ArrayToBase64()` (not `btoa`/
+    `String.fromCharCode` spread, so no call-stack risk on large
+    receipts) — confirmed by reading qz-tray.js's source. Don't hand-roll a
+    `Uint8Array -> base64` helper for this; `QzTransport.print()` passes
+    bytes straight through.
+
+18. **QZ Tray has no protocol to auto-detect and no native OS device
+    picker.** Unlike Bluetooth (which detects `language`/`codepageMapping`
+    from a matched BLE profile in `profiles.ts`, and whose device picker is
+    a `requestDevice()` browser dialog), `QzTransport`'s reported
+    `PrinterInfo.language`/`codepageMapping` are just mirrors of whatever
+    `PrinterWrapperConfig` the transport was constructed with (confirmed:
+    `ReceiptBuilder.ts#buildReceiptBytes` always encodes using
+    `job.language ?? defaults.language`, never `PrinterInfo.language`, so
+    this is purely informational either way), and printer selection is a
+    consumer-built UI backed by `PrinterWrapper.listQzPrinters()`
+    (`qz.printers.find()`) instead of a browser-native picker.
+
 ## Coding conventions in this repo
 
 - **Extract data tables and error-handling into their own files** once a
@@ -273,13 +340,21 @@ These cost real debugging time. Don't reintroduce them.
   `raw()` path; non-ASCII lines (only reachable with `stripAccents: false`)
   fall back to unpadded `encoder.text()` and rely on the printer's native
   align command.
-- Only Bluetooth is implemented. `src/interfaces/PrinterTransport.ts` is
-  deliberately transport-agnostic (no Bluetooth-specific parameters in its
-  shape) so a future WebUSB transport
+- Bluetooth and QZ Tray (unsigned/demo mode only) are implemented.
+  `src/interfaces/PrinterTransport.ts` is deliberately transport-agnostic —
+  exactly why adding `QzTransport.ts` required no change to that interface's
+  shape. A raw WebUSB transport
   ([WebUSBReceiptPrinter](https://github.com/NielsLeenheer/WebUSBReceiptPrinter))
-  could implement it as `src/interfaces/usb/` without changing
-  `PrinterWrapper.ts`'s shape — but that port hasn't been done, there is no
-  USB code in this repo yet.
+  was considered instead but dropped after a hands-on attempt didn't pan
+  out — QZ Tray (`src/interfaces/qz/`) supersedes that idea: it talks to an
+  already-installed, already-printer-paired desktop app over a local
+  websocket instead of implementing raw USB device/protocol handling
+  directly. No WebUSB transport is planned. QZ's certificate/signature
+  plumbing (`qz.security.setCertificatePromise`/`setSignaturePromise`,
+  needed for *silent*/pre-signed printing instead of QZ Tray's own
+  permission-dialog prompt) is explicitly out of scope — that requires a
+  private-key signing operation only a consumer's own backend can safely
+  do, and is left for a future addition.
 - Upstream WebBluetoothReceiptPrinter's "Cat printer" profile
   (`language: 'meow'`, a different, non-ESC/POS/StarPRNT protocol) was not
   ported into `profiles.ts` — `ReceiptPrinterEncoder` doesn't speak that
@@ -296,4 +371,10 @@ These cost real debugging time. Don't reintroduce them.
 `config.ts`, `demo/`, or the Dockerfile itself — the image bakes a full
 `npm run build` in its `build` stage (see `Dockerfile`), it does not mount
 source live. Web Bluetooth works fine over `http://localhost:3000` — Chrome
-treats `localhost` as a secure context regardless of port.
+treats `localhost` as a secure context regardless of port. QZ Tray runs on
+the *browser's* host machine (`localhost:8181`/`8282` etc.) regardless of
+where the demo page itself is served from, so it works the same whether the
+demo HTML comes from Docker or anywhere else — but neither transport's real
+hardware path (a paired Bluetooth printer, or a running QZ Tray app with a
+paired printer) can be exercised inside this repo's own sandboxed
+environment; both require the user's own manual testing.
