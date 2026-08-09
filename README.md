@@ -39,9 +39,10 @@ Two ways to use it:
 
 For a plain HTML page or webview: no bundler, no `npm install`, no build
 step. The published package ships a prebuilt, self-contained UMD bundle at
-`build/printer-wrapper.js` — bundles `@point-of-sale/receipt-printer-encoder`,
-`qz-tray`, and this project's own Bluetooth code internally, so **you don't
-need to install or reference anything else**.
+`build/printer-wrapper.js` (~325KB, ~108KB gzipped) — bundles
+`@point-of-sale/receipt-printer-encoder`, `qz-tray`, and this project's own
+Bluetooth code internally, so **you don't need to install or reference
+anything else**.
 
 Grab that one file — from
 `node_modules/bluetooth-print-pos/build/printer-wrapper.js` after

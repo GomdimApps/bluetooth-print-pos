@@ -1,4 +1,4 @@
-import { toCanvas, toSVG } from '@bwip-js/browser'
+import { pdf417 as bwipPdf417, drawingSVG } from '@bwip-js/browser'
 import { errorMessage } from '../interfaces/printerErrors'
 import type { BarcodeBuildResult } from './barcodeDrawing'
 
@@ -9,6 +9,11 @@ import type { BarcodeBuildResult } from './barcodeDrawing'
  * for preview. `compact` is bwip-js's name for what the real encoder calls
  * `truncated`. See AGENTS.md gotcha #4 for why print-side correctness never
  * depends on this file.
+ *
+ * Imports the `pdf417`/`drawingSVG` *named* exports, not the generic
+ * `toCanvas`/`toSVG` + `bcid` string API — the generic API resolves the
+ * symbology via a runtime string lookup that references all ~100 bundled
+ * symbologies, defeating tree-shaking. See AGENTS.md gotcha #22.
  */
 export interface Pdf417Options {
   columns?: number
@@ -24,7 +29,13 @@ export interface Pdf417Options {
 const DEFAULT_MODULE_WIDTH = 3
 const DEFAULT_ERRORLEVEL = 1
 
-/** Shared option mapping for both bwip-js calls below — avoids repeating the same conditional spreads twice. */
+/**
+ * Shared option mapping for both bwip-js calls below — avoids repeating the
+ * same conditional spreads twice. `bcid` is only here to satisfy bwip-js's
+ * `RenderOptions` type (still mandatory there for every symbology) — the
+ * named `pdf417()` call below never actually consults it at runtime, since
+ * it calls the PDF417 encoder directly instead of dispatching on `bcid`.
+ */
 function toBwipOptions(value: string, columns: number | undefined, opts: Pdf417Options) {
   return {
     bcid: 'pdf417' as const,
@@ -62,7 +73,7 @@ export function resolvePdf417Columns(
 
   const preferred = preferredColumns(widthBudgetPx, element.width ?? DEFAULT_MODULE_WIDTH)
   try {
-    toSVG({ ...toBwipOptions(element.value, preferred, element), scale: 1 })
+    bwipPdf417({ ...toBwipOptions(element.value, preferred, element), scale: 1 }, drawingSVG())
     return preferred
   } catch {
     return undefined
@@ -74,7 +85,7 @@ export function buildPdf417(value: string, moduleScale: number, options: Pdf417O
   const offscreen = document.createElement('canvas')
 
   try {
-    toCanvas(offscreen, { ...toBwipOptions(value, options.columns, options), scale: moduleScale })
+    bwipPdf417(offscreen, { ...toBwipOptions(value, options.columns, options), scale: moduleScale })
   } catch (error) {
     return { error: errorMessage(error) }
   }

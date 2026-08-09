@@ -1,4 +1,4 @@
-import { toCanvas } from '@bwip-js/browser'
+import { code128 as bwipCode128 } from '@bwip-js/browser'
 import { errorMessage } from '../interfaces/printerErrors'
 import { cleanEncoderError, type BarcodeBuildResult } from './barcodeDrawing'
 
@@ -8,8 +8,9 @@ import { cleanEncoderError, type BarcodeBuildResult } from './barcodeDrawing'
  * a hand-ported Subset-B-only encoder; bwip-js's `code128` auto-selects
  * between Subsets A/B/C per the real spec, so it also encodes control
  * characters and packs long numeric runs tighter — strictly broader than
- * what the hand-rolled version supported, for zero extra bundle cost since
- * the dependency is already fully loaded for PDF417.
+ * what the hand-rolled version supported. Imports the `code128` *named*
+ * export, not the generic `toCanvas` + `bcid` string API — see AGENTS.md
+ * gotcha #22 for why that distinction is worth ~740KB.
  *
  * bwip-js's `height` option is millimeters at ~72dpi internally, not
  * literal pixels (confirmed by measuring real output at several values) —
@@ -24,7 +25,9 @@ export function buildCode128(value: string, moduleWidthPx: number, heightPx: num
   const offscreen = document.createElement('canvas')
 
   try {
-    toCanvas(offscreen, { bcid: 'code128', text: value, scale: moduleWidthPx })
+    // `bcid` is only here to satisfy bwip-js's RenderOptions type (still
+    // mandatory there); the named call below never actually consults it.
+    bwipCode128(offscreen, { bcid: 'code128', text: value, scale: moduleWidthPx })
   } catch (error) {
     return { error: cleanEncoderError(errorMessage(error)) }
   }

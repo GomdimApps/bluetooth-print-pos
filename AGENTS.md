@@ -286,6 +286,29 @@ These cost real debugging time. Don't reintroduce them.
     `errorlevel`, so both `buildPdf417()` and `resolvePdf417Columns()`
     render/validate against the same level the real print already assumes.
 
+22. **`@bwip-js/browser`'s generic `toCanvas()`/`toSVG()`/`render()` API
+    resolves the symbology via a runtime string (`bcid`), which pulls its
+    *entire* ~100-symbology engine into the bundle — always use the
+    per-symbology named exports instead.** The generic API calls
+    `bwipp_lookup(bcid)` internally, a dispatch table that references
+    every bundled symbology; since `bcid` is a runtime string (not a
+    static import), webpack can't prove which symbologies are actually
+    reachable and can't tree-shake the rest. Confirmed with a real
+    throwaway build: the generic pattern minified to 907 KiB; switching
+    `Preview/pdf417.ts`/`code128.ts`/`itf.ts` to the named exports
+    (`pdf417`/`code128`/`interleaved2of5`, each calling its own BWIPP
+    encoder directly, bypassing `bwipp_lookup` entirely) dropped that to
+    168 KiB combined — confirmed byte-identical behavior between the two
+    (same capacity-check results, same errors) since both paths go
+    through the same internal `_ToAny`/`_Render` machinery either way.
+    For the SVG capacity-check path (`resolvePdf417Columns()`, no
+    `<canvas>` available), use `drawingSVG()` as the drawing argument —
+    `pdf417(opts, drawingSVG())` — instead of `toSVG({bcid: 'pdf417', ...})`.
+    Note `RenderOptions` still requires a `bcid` field on the options
+    object for typing purposes even when calling a named export directly —
+    it's structurally mandatory but never actually read on this path, so
+    keep it, just don't call `toCanvas`/`toSVG`/`render` with it.
+
 ## Coding conventions in this repo
 
 - **Extract data/error-handling into their own files** once a file mixes
@@ -322,15 +345,16 @@ These cost real debugging time. Don't reintroduce them.
 - `@bwip-js/browser` (MIT) was added for PDF417 preview — compaction modes,
   a ~2800-entry codeword table, Reed-Solomon over GF(929) aren't safely
   hand-portable with no way to scan-test here. Later swapped in for
-  `code128.ts`/`itf.ts` too (same dependency already bundled → zero extra
-  cost, and Code128 got *more* correct: bwip-js auto-selects Subsets
-  A/B/C, the hand-rolled version only did Subset B). Chosen over a smaller,
-  newer, unproven matrix-output package (same pattern as
-  `qrcode-generator`) for its production track record — at a real cost:
-  its full 100+-symbology engine (only `code128`/`interleaved2of5`/
-  `pdf417` used) took the UMD bundle from ~120KB to **~1.06MB**, justified
-  across three symbologies now. Preview correctness for all three depends
-  on it; print-side correctness doesn't (gotcha #4).
+  `code128.ts`/`itf.ts` too, and Code128 got *more* correct doing so:
+  bwip-js auto-selects Subsets A/B/C, the hand-rolled version only did
+  Subset B. Chosen over a smaller, newer, unproven matrix-output package
+  (same pattern as `qrcode-generator`) for its production track record —
+  it ships a full 100+-symbology engine, but only `code128`/
+  `interleaved2of5`/`pdf417` are used; per gotcha #22, importing the
+  per-symbology named exports (not the generic `bcid`-string API) means
+  only those three are actually bundled — **~168KB combined**, not the
+  full engine. Preview correctness for all three depends on this
+  dependency; print-side correctness doesn't (gotcha #4).
 - `PaperWidth` is `'58mm' | '80mm' | '112mm'` — `80mm` cross-checked
   against real hardware (576 dots); `112mm` is an estimate, not
   hardware-verified.

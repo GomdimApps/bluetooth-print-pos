@@ -1,4 +1,4 @@
-import { toCanvas } from '@bwip-js/browser'
+import { interleaved2of5 as bwipInterleaved2of5 } from '@bwip-js/browser'
 import { errorMessage } from '../interfaces/printerErrors'
 import { cleanEncoderError, type BarcodeBuildResult } from './barcodeDrawing'
 
@@ -9,8 +9,8 @@ import { cleanEncoderError, type BarcodeBuildResult } from './barcodeDrawing'
  * (confirmed by reading its actual runtime source, not assumed) is
  * digits-only and auto-pads an odd-length value with a leading zero — same
  * behavior the hand-rolled version had, so this is a behavior-preserving
- * swap, for zero extra bundle cost since the dependency is already fully
- * loaded for PDF417.
+ * swap. Imports the `interleaved2of5` *named* export, not the generic
+ * `toCanvas` + `bcid` string API — see AGENTS.md gotcha #22.
  *
  * Same height-stretching approach as code128.ts — see that file's comment.
  */
@@ -18,7 +18,8 @@ export function buildItf(value: string, moduleWidthPx: number, heightPx: number)
   const offscreen = document.createElement('canvas')
 
   try {
-    toCanvas(offscreen, { bcid: 'interleaved2of5', text: value, scale: moduleWidthPx })
+    // `bcid` only satisfies bwip-js's RenderOptions type — never consulted at runtime here.
+    bwipInterleaved2of5(offscreen, { bcid: 'interleaved2of5', text: value, scale: moduleWidthPx })
   } catch (error) {
     return { error: cleanEncoderError(errorMessage(error)) }
   }
