@@ -7,13 +7,13 @@ import type { BarcodeBuildResult } from '../core/barcodeDrawing'
  * implementation from the real encoder's `.pdf417()` (which just emits
  * ESC/POS bytes; the printer firmware draws the actual symbol), used only
  * for preview. `compact` is bwip-js's name for what the real encoder calls
- * `truncated`. See AGENTS.md gotcha #4 for why print-side correctness never
+ * `truncated`. See AGENTS.md gotcha #1 for why print-side correctness never
  * depends on this file.
  *
  * Imports the `pdf417`/`drawingSVG` *named* exports, not the generic
  * `toCanvas`/`toSVG` + `bcid` string API — the generic API resolves the
  * symbology via a runtime string lookup that references all ~100 bundled
- * symbologies, defeating tree-shaking. See AGENTS.md gotcha #22.
+ * symbologies, defeating tree-shaking. See AGENTS.md gotcha #7.
  */
 export interface Pdf417Options {
   columns?: number
@@ -22,9 +22,9 @@ export interface Pdf417Options {
   truncated?: boolean
 }
 
-// The real encoder's own pdf417() defaults (AGENTS.md gotcha #1) — bwip-js
-// defaults these differently, which visibly changes the symbol's shape for
-// identical data (gotchas #20/#21). Used below so an unset value renders
+// The real encoder's own pdf417() defaults — bwip-js defaults these
+// differently, which visibly changes the symbol's shape for identical
+// data (AGENTS.md gotchas #5/#6). Used below so an unset value renders
 // the same way the real print already assumes.
 const DEFAULT_MODULE_WIDTH = 3
 const DEFAULT_ERRORLEVEL = 1
@@ -59,11 +59,11 @@ function preferredColumns(widthBudgetPx: number, moduleWidthDots: number): numbe
  * bwip-js dry-run (`toSVG`) confirms it actually fits `element.value` at the
  * given `rows`/`errorlevel`/`truncated`. Falls back to `undefined` (fully
  * automatic) when it doesn't fit, since the real encoder never validates
- * PDF417 capacity itself (AGENTS.md gotcha #20) — a preferred `columns` that
+ * PDF417 capacity itself (AGENTS.md gotcha #5) — a preferred `columns` that
  * doesn't fit must never reach it unchecked.
  *
  * `ReceiptBuilder.ts` and `PreviewRenderer.ts` both call this, so real print
- * and preview always agree on the same `columns` (AGENTS.md gotcha #4).
+ * and preview always agree on the same `columns` (AGENTS.md gotcha #1).
  */
 export function resolvePdf417Columns(
   element: { value: string; columns?: number; width?: number; rows?: number; errorlevel?: number; truncated?: boolean },

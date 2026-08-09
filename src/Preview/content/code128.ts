@@ -10,7 +10,7 @@ import { cleanEncoderError, type BarcodeBuildResult } from '../core/barcodeDrawi
  * characters and packs long numeric runs tighter — strictly broader than
  * what the hand-rolled version supported. Imports the `code128` *named*
  * export, not the generic `toCanvas` + `bcid` string API — see AGENTS.md
- * gotcha #22 for why that distinction is worth ~740KB.
+ * gotcha #7 for why that distinction is worth ~740KB.
  *
  * bwip-js's `height` option is millimeters at ~72dpi internally, not
  * literal pixels (confirmed by measuring real output at several values) —

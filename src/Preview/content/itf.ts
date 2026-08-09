@@ -10,7 +10,7 @@ import { cleanEncoderError, type BarcodeBuildResult } from '../core/barcodeDrawi
  * digits-only and auto-pads an odd-length value with a leading zero — same
  * behavior the hand-rolled version had, so this is a behavior-preserving
  * swap. Imports the `interleaved2of5` *named* export, not the generic
- * `toCanvas` + `bcid` string API — see AGENTS.md gotcha #22.
+ * `toCanvas` + `bcid` string API — see AGENTS.md gotcha #7.
  *
  * Same height-stretching approach as code128.ts — see that file's comment.
  */

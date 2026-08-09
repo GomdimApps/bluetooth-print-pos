@@ -34,8 +34,7 @@ export async function buildReceiptBytes(job: PrintJob, defaults: PrinterWrapperC
     columns,
     language: job.language ?? defaults.language,
     // Always a resolved number (unlike codepageMapping/printerModel above),
-    // so no undefined-guard spread needed — see gotcha #1 in AGENTS.md,
-    // which doesn't apply here since this key is never omitted/undefined.
+    // so no undefined-guard spread needed — this key is never omitted/undefined.
     feedBeforeCut: job.feedBeforeCut ?? defaults.feedBeforeCut,
     ...(codepageMapping !== undefined ? { codepageMapping } : {}),
     ...(printerModel !== undefined ? { printerModel } : {}),
