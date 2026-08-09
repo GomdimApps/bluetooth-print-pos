@@ -33,6 +33,8 @@ export interface PrinterWrapperConfig {
   imageMinHeight: number
   /** Strips accents from text before printing (thermal printers usually only have reliable ASCII). */
   stripAccents: boolean
+  /** Blank lines fed before the physical cut command, so the cutter doesn't slice through the last printed content. See config.ts's DEFAULT_CONFIG. */
+  feedBeforeCut: number
 }
 
 /**
@@ -148,6 +150,8 @@ export interface PrintJob {
   printerModel?: string
   /** Paper cut at the end. `false` to skip cutting. Default: 'full'. */
   cut?: 'full' | 'partial' | false
+  /** Blank lines fed before the cut. See PrinterWrapperConfig.feedBeforeCut. */
+  feedBeforeCut?: number
   stripAccents?: boolean
   content: PrintJobElement[]
 }

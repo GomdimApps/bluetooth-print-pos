@@ -206,6 +206,7 @@ const printer = new PrinterWrapper({
   language: 'star-prnt',    // 'esc-pos' | 'star-prnt' | 'star-line', default 'esc-pos'
   codepageMapping: 'xprinter', // for non-standard clone printers; forwarded as-is to ReceiptPrinterEncoder
   printerModel: 'epson-tm-t88vi', // lets ReceiptPrinterEncoder auto-configure known-model defaults
+  feedBeforeCut: 4,          // blank lines fed before the physical cut, default 4 — see below
 })
 
 // or per job:
@@ -216,6 +217,16 @@ Note this is independent from `connect()`/`connect({ compat: true })`: the
 `language`/`codepageMapping` a Bluetooth profile reports on `PrinterInfo`
 after connecting is informational only — it isn't applied to
 `printReceipt()` automatically, so set it explicitly if you need it.
+
+**`feedBeforeCut`**: the physical cutter sits some distance below the print
+head on every thermal printer, so a few blank lines need to feed through
+before the cut — otherwise the blade fires too close and slices through the
+last thing you printed (worse for tall elements like a PDF417 barcode than
+a single line of text). The default of `4` matches the most common value
+across known printer models; if you still see content getting clipped by
+the cut on your specific hardware, raise it (e.g. `feedBeforeCut: 6`). A
+recognized `printerModel` overrides this automatically with its own known
+value when set.
 
 ### Compatibility mode
 
@@ -334,6 +345,21 @@ row, no right-side row-indicator columns or stop pattern, useful when
 paper width is tight. `columns`/`rows`/`errorlevel` are also available to
 tune the symbol's shape and error-correction level; see
 [src/types.ts](src/types.ts) for the full option list.
+
+**Preview vs. real print shape**: when `columns` isn't set, the *real*
+print's PDF417 layout is chosen by the printer's own firmware, while the
+preview's is chosen by `@bwip-js/browser` — two independent implementations
+that can pick different (but equally valid and scannable) grid shapes for
+the same data. To keep them visually matching, this library picks a
+paper-width-appropriate default `columns` (`3`/`7`/`12` for `58mm`/`80mm`/
+`112mm`) and applies it identically on both sides, falling back to fully
+automatic sizing (the previous behavior) for values too large to fit that
+column count. An explicit `columns` in the job always overrides this and is
+never second-guessed. The preview also matches the real encoder's default
+`errorlevel` (`1`) when the job doesn't set one — bwip-js's own unset
+default is a different, higher level, which otherwise renders a taller
+symbol (more error-correction codewords) than the real print for the exact
+same data and `columns`.
 
 **"Too wide" warning**: some codes — a 44-digit boleto barcode is the
 classic case — are physically wider than the paper once rendered, and a

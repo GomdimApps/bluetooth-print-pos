@@ -141,6 +141,23 @@ These cost real debugging time. Don't reintroduce them.
    `Preview/*.ts` renderer cannot break a real print, and vice versa —
    `ReceiptBuilder.ts` only ever calls the real encoder's own methods.
 
+   **One narrow, deliberate exception**: `ReceiptBuilder.ts`'s `pdf417` case
+   imports `resolvePdf417Columns()` from `Preview/pdf417.ts` — not to draw
+   anything, only to decide the `columns` *value* to send to the real
+   encoder. Without an explicit `columns` in the job, the printer firmware
+   and bwip-js would each pick their own PDF417 grid shape independently,
+   producing visibly different (though both correctly-scannable) symbols
+   between print and preview — confirmed on real hardware (Epson TM-T20X-II
+   via QZ Tray). `resolvePdf417Columns()` makes both sides agree on the same
+   paper-width-appropriate `columns` (`Preview/pdf417.ts`'s internal
+   `preferredColumns()`, `17*columns+69` modules — PDF417's standard width
+   formula, confirmed against real `@bwip-js/browser` measurements), with a
+   capacity-checked fallback to fully-automatic `columns` when that preferred count doesn't
+   fit a given value. This still doesn't violate the invariant above: actual
+   print-*byte* generation never depends on Preview rendering succeeding,
+   only this one upstream numeric choice does, and its fallback is always
+   safe. See gotcha #19 for why the fallback specifically has to be there.
+
 5. **QR `size` option is dots-per-module directly** (encoder default: `6`),
    not a multiplier. `Preview/PreviewRenderer.ts`'s `QRCODE_DEFAULT_CELL_PX`
    must equal that same `6` — a mismatch here is exactly what caused the
@@ -264,6 +281,64 @@ These cost real debugging time. Don't reintroduce them.
     this is purely informational either way), and printer selection is a
     consumer-built UI backed by `PrinterWrapper.listQzPrinters()`
     (`qz.printers.find()`) instead of a browser-native picker.
+
+19. **`ReceiptPrinterEncoder`'s `cut()` defaults `feedBeforeCut` to `0`**
+    unless a *recognized* `printerModel` supplies its own `cutter.feed`
+    (confirmed by reading the installed encoder source: `feedBeforeCut =
+    printerModel?.cutter?.feed || options.feedBeforeCut` — the model's own
+    value always wins when present). With zero feed, the physical cutter
+    (positioned some distance below the print head on every thermal
+    printer) fires before the last printed content has advanced far enough
+    to clear it — slicing through it. Confirmed on real hardware: an Epson
+    TM-T20X-II via the QZ Tray transport cut text/barcodes/PDF417 too close
+    or clean through them, worse for taller elements. The model's exact
+    string (`epson-tm-t20x`) isn't in the encoder's known-models table
+    (throws `Unknown printer model`), so no auto-fallback applied — its
+    closest known relatives (`epson-tm-t20iii`/`epson-tm-t20iv`) both use
+    `cutter: { feed: 4 }`, and `4` is also the single most common
+    `cutter.feed` value across the encoder's entire model table (21 of 30
+    models). `config.ts`'s `DEFAULT_CONFIG.feedBeforeCut` is `4` for exactly
+    this reason — `ReceiptBuilder.ts` always passes it explicitly so real
+    prints never rely on the encoder's own zero default.
+    `PreviewRenderer.ts` mirrors the same gap before its "✂ cut" mark, per
+    the "preview and real print must stay behaviorally identical" rule
+    below.
+
+20. **`@bwip-js/browser` validates PDF417 capacity and throws when it
+    doesn't fit; the real `@point-of-sale/receipt-printer-encoder` does
+    not validate at all.** Confirmed live: encoding a 2000-character value
+    with `columns: 3` makes bwip-js reject it with
+    `pdf417insufficientCapacity`, while the real encoder happily emits
+    ESC/POS bytes requesting that same physically-impossible 3-column
+    layout, with whatever the printer firmware does with it left completely
+    unverified. This asymmetry is *why* `resolvePdf417Columns()`
+    (`Preview/pdf417.ts`, see gotcha #4's addendum) exists at all — it's
+    the shared bwip-js-backed capacity check both `ReceiptBuilder.ts` and
+    `PreviewRenderer.ts` run before committing to a non-auto `columns`
+    value, falling back to fully-automatic `columns` (the pre-existing,
+    always-safe behavior) whenever the preferred count doesn't fit. Never
+    pass a fixed/preferred PDF417 `columns` value straight to the real
+    encoder without running it through this check first.
+
+21. **bwip-js's own default PDF417 `eclevel` (error-correction level) is
+    NOT the same as the real encoder's default `errorlevel`.** Confirmed by
+    reading back the actual ESC/POS bytes: the real
+    `@point-of-sale/receipt-printer-encoder`, with `errorlevel` omitted,
+    encodes the error-correction-level command parameter as ASCII `"01"`
+    (level `1`). bwip-js, with `eclevel` omitted, renders at a height that
+    exactly matches its own `eclevel: 2` output — a different default.
+    Since a higher error-correction level needs more codewords (hence more
+    rows) for identical data/columns, this was a second, more subtle source
+    of preview-vs-print PDF417 shape mismatches — one that survived even
+    after `columns` was aligned (gotcha #20). `Preview/pdf417.ts`'s
+    `PDF417_ENCODER_DEFAULT_ERRORLEVEL` (`= 1`) is passed to bwip-js
+    whenever the job doesn't set `errorlevel` itself, in both
+    `buildPdf417()` and `resolvePdf417Columns()` — so an unset `errorlevel`
+    now renders/validates against the *same* level the real print silently
+    already assumes, instead of bwip-js's own different one. Both bwip-js
+    call sites must stay in sync on this (a mismatch between the capacity
+    *check* and the actual *render* would make the check validate against
+    the wrong assumption).
 
 ## Coding conventions in this repo
 

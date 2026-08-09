@@ -8,6 +8,15 @@ export const DEFAULT_CONFIG: PrinterWrapperConfig = {
   imageMinWidth: 224,
   imageMinHeight: 64,
   stripAccents: true,
+  // Blank lines fed before the physical cut command. The underlying encoder
+  // defaults this to 0 unless a recognized printerModel supplies its own
+  // cutter.feed — with 0, the cutter fires before the last printed content
+  // has advanced past it, slicing through it (confirmed on real hardware:
+  // an Epson TM-T20X-II, whose exact model isn't in the encoder's known-model
+  // table). 4 matches the encoder's own cutter.feed for the TM-T20X-II's
+  // closest known relatives (epson-tm-t20iii/iv) and is also the single most
+  // common value across its entire model table.
+  feedBeforeCut: 4,
 }
 
 /**

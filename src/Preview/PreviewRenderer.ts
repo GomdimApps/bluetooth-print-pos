@@ -6,7 +6,7 @@ import { prepareDitheredImage, type DitheredImage } from './imageDither'
 import { buildCode128 } from './code128'
 import { buildItf } from './itf'
 import { buildQrCode, type QrCodeDrawing } from './qrcode'
-import { buildPdf417 } from './pdf417'
+import { buildPdf417, resolvePdf417Columns } from './pdf417'
 import type { BarcodeDrawing, BarcodeBuildResult } from './barcodeDrawing'
 import type { Alignment, PrintJob, PrintJobElement, PrinterWrapperConfig, PrintPreview } from '../types'
 
@@ -93,7 +93,15 @@ export async function renderPreviewCanvas(job: PrintJob, defaults: PrinterWrappe
     }
   }
 
-  if ((job.cut ?? 'full') !== false) drawables.push(cutDrawable())
+  if ((job.cut ?? 'full') !== false) {
+    // Mirrors ReceiptBuilder.ts's feedBeforeCut: the real print feeds this
+    // many blank lines before the physical cut so the cutter doesn't slice
+    // through the last printed content — the preview must show the same
+    // gap, or it'd under-represent how much blank paper the real print uses.
+    const feedBeforeCut = job.feedBeforeCut ?? defaults.feedBeforeCut
+    if (feedBeforeCut > 0) drawables.push(spaceDrawable(lineHeightPx * feedBeforeCut))
+    drawables.push(cutDrawable())
+  }
 
   const canvas = document.createElement('canvas')
   canvas.width = contentWidthPx + MARGIN_PX * 2
@@ -196,8 +204,10 @@ function buildQrDrawable(element: PrintJobElement & { type: 'qrcode' }): Drawabl
 /** Reuses realBarcodeDrawable()'s "too wide for paper" handling — PDF417 can overflow the paper just like a 1D barcode. */
 function buildPdf417Drawable(element: PrintJobElement & { type: 'pdf417' }, contentWidthPx: number): Drawable {
   const moduleScale = element.width ?? PDF417_DEFAULT_SCALE
+  // Paper-width-preferred columns when unset, matching ReceiptBuilder.ts — AGENTS.md gotchas #4/#20/#21.
+  const columns = resolvePdf417Columns(element, contentWidthPx)
   const result = buildPdf417(element.value, moduleScale, {
-    columns: element.columns,
+    columns,
     rows: element.rows,
     errorlevel: element.errorlevel,
     truncated: element.truncated,
