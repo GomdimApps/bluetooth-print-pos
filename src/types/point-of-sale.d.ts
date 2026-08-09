@@ -1,9 +1,13 @@
 /**
- * Ambient declarations for the two @point-of-sale libs used by the wrapper.
- * Neither one ships types (nor a @types package), so this file only covers
- * what this project actually uses — confirmed by reading the bundle
- * installed at node_modules/@point-of-sale/*\/dist and each lib's README.
- * It is not a complete typing of their APIs.
+ * Ambient declarations for @point-of-sale/receipt-printer-encoder, used by
+ * the wrapper. It doesn't ship types (nor a @types package), so this file
+ * only covers what this project actually uses — confirmed by reading the
+ * bundle installed at node_modules/@point-of-sale/receipt-printer-encoder/dist
+ * and its README. It is not a complete typing of its API.
+ *
+ * (Bluetooth connectivity used to be another @point-of-sale package,
+ * @point-of-sale/webbluetooth-receipt-printer — it was ported in-house into
+ * src/interfaces/bluetooth/ and this project no longer depends on it.)
  */
 
 declare module '@point-of-sale/receipt-printer-encoder' {
@@ -34,6 +38,21 @@ declare module '@point-of-sale/receipt-printer-encoder' {
     errorlevel?: 'l' | 'm' | 'q' | 'h'
   }
 
+  export interface Pdf417Options {
+    /** 0 (auto) or 1-30. Default 0. */
+    columns?: number
+    /** 0 (auto) or 3-90. Default 0. */
+    rows?: number
+    /** Module width ratio, 2-8. Default 3. */
+    width?: number
+    /** Module height ratio, 2-8. Default 3. */
+    height?: number
+    /** 0-8. Default 1. */
+    errorlevel?: number
+    /** Default false. */
+    truncated?: boolean
+  }
+
   export default class ReceiptPrinterEncoder {
     constructor(options?: ReceiptPrinterEncoderOptions)
 
@@ -55,6 +74,7 @@ declare module '@point-of-sale/receipt-printer-encoder' {
     rule(options?: RuleOptions): this
     barcode(value: string, symbology: string, options?: BarcodeOptions): this
     qrcode(data: string, options?: QrcodeOptions): this
+    pdf417(value: string, options?: Pdf417Options): this
     /** width/height must be multiples of 8. `source` accepts HTMLImageElement, canvas or ImageData. */
     image(
       source: CanvasImageSource | ImageData,
@@ -69,29 +89,5 @@ declare module '@point-of-sale/receipt-printer-encoder' {
     raw(bytes: number[] | Uint8Array): this
 
     encode(): Uint8Array
-  }
-}
-
-declare module '@point-of-sale/webbluetooth-receipt-printer' {
-  export interface BluetoothPrinterInfo {
-    type: 'bluetooth'
-    name: string
-    id: string
-    language: 'esc-pos' | 'star-prnt' | 'star-line'
-    codepageMapping?: unknown
-  }
-
-  export default class WebBluetoothReceiptPrinter extends EventTarget {
-    /** Must be called from a user gesture (e.g. onclick). */
-    connect(): Promise<void>
-    reconnect(device: { id: string }): Promise<void>
-    print(data: Uint8Array | number[]): Promise<void>
-    disconnect(): Promise<void>
-    addEventListener(
-      type: 'connected',
-      listener: (event: CustomEvent<BluetoothPrinterInfo> & BluetoothPrinterInfo) => void,
-    ): void
-    addEventListener(type: string, listener: EventListenerOrEventListenerObject): void
-    removeEventListener(type: string, listener: EventListenerOrEventListenerObject): void
   }
 }

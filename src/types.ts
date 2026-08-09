@@ -33,6 +33,8 @@ export interface PrinterWrapperConfig {
   imageMinHeight: number
   /** Strips accents from text before printing (thermal printers usually only have reliable ASCII). */
   stripAccents: boolean
+  /** Blank lines fed before the physical cut command, so the cutter doesn't slice through the last printed content. See config.ts's DEFAULT_CONFIG. */
+  feedBeforeCut: number
 }
 
 /**
@@ -44,8 +46,9 @@ export interface PrinterWrapperConfig {
 export type PrinterWrapperConfigInput = Partial<PrinterWrapperConfig> & { paperWidth?: PaperWidth }
 
 export interface PrinterInfo {
-  type: 'bluetooth'
+  type: 'bluetooth' | 'qz'
   name: string
+  /** For type: 'qz', this is just the QZ printer name — QZ has no separate device id the way Bluetooth's device.id does. */
   id: string
   language: 'esc-pos' | 'star-prnt' | 'star-line'
   codepageMapping?: unknown
@@ -120,6 +123,23 @@ export type PrintJobElement =
       align?: Alignment
     }
   | { type: 'qrcode'; value: string; align?: Alignment; size?: number }
+  | {
+      type: 'pdf417'
+      value: string
+      align?: Alignment
+      /** 0 (auto) or 1-30. */
+      columns?: number
+      /** 0 (auto) or 3-90. */
+      rows?: number
+      /** Module width ratio, 2-8. */
+      width?: number
+      /** Module height ratio, 2-8. */
+      height?: number
+      /** Error correction level, 0-8. */
+      errorlevel?: number
+      /** Truncated PDF417 (fewer bars per row, no right row-indicator/stop pattern) instead of standard. Default false. */
+      truncated?: boolean
+    }
 
 export interface PrintJob {
   columns?: number
@@ -130,6 +150,8 @@ export interface PrintJob {
   printerModel?: string
   /** Paper cut at the end. `false` to skip cutting. Default: 'full'. */
   cut?: 'full' | 'partial' | false
+  /** Blank lines fed before the cut. See PrinterWrapperConfig.feedBeforeCut. */
+  feedBeforeCut?: number
   stripAccents?: boolean
   content: PrintJobElement[]
 }

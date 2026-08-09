@@ -38,15 +38,17 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@bwip-js/browser": "^4.11.2",
     "@point-of-sale/receipt-printer-encoder": "^3.0.3",
-    "@point-of-sale/webbluetooth-receipt-printer": "^2.0.0",
     "canvas-dither": "^1.0.1",
-    "qrcode-generator": "^2.0.4"
+    "qrcode-generator": "^2.0.4",
+    "qz-tray": "^2.2.6"
   },
   "devDependencies": {
+    "@types/qz-tray": "^2.2.2",
     "@types/web-bluetooth": "^0.0.21",
     "ts-loader": "^9.5.4",
-    "typescript": "^5.9.3",
+    "typescript": "^6.0.2",
     "webpack": "^5.102.1",
     "webpack-cli": "^5.1.4"
   }

@@ -2,6 +2,7 @@ import ReceiptPrinterEncoder from '@point-of-sale/receipt-printer-encoder'
 import { resolveColumns, resolveImageMaxWidth } from '../../config'
 import { applyTextElement } from '../Text/sample'
 import { applyImageElement } from '../Images/image'
+import { resolvePdf417Columns } from '../Preview/content/pdf417'
 import type { PrintJob, PrinterWrapperConfig } from '../types'
 
 // Barcode height/width defaults (encoder has none of its own). Matches
@@ -32,6 +33,9 @@ export async function buildReceiptBytes(job: PrintJob, defaults: PrinterWrapperC
   const encoder = new ReceiptPrinterEncoder({
     columns,
     language: job.language ?? defaults.language,
+    // Always a resolved number (unlike codepageMapping/printerModel above),
+    // so no undefined-guard spread needed — this key is never omitted/undefined.
+    feedBeforeCut: job.feedBeforeCut ?? defaults.feedBeforeCut,
     ...(codepageMapping !== undefined ? { codepageMapping } : {}),
     ...(printerModel !== undefined ? { printerModel } : {}),
   })
@@ -71,6 +75,21 @@ export async function buildReceiptBytes(job: PrintJob, defaults: PrinterWrapperC
         encoder.align(element.align ?? 'center')
         const qrOptions = element.size !== undefined ? { size: element.size } : {}
         encoder.qrcode(element.value, qrOptions)
+        break
+      }
+
+      case 'pdf417': {
+        encoder.align(element.align ?? 'center')
+        // Paper-width-preferred columns when unset, matching PreviewRenderer.ts — AGENTS.md gotchas #4/#20/#21.
+        const columns = resolvePdf417Columns(element, imageMaxWidth)
+        encoder.pdf417(element.value, {
+          ...(columns !== undefined ? { columns } : {}),
+          ...(element.rows !== undefined ? { rows: element.rows } : {}),
+          ...(element.width !== undefined ? { width: element.width } : {}),
+          ...(element.height !== undefined ? { height: element.height } : {}),
+          ...(element.errorlevel !== undefined ? { errorlevel: element.errorlevel } : {}),
+          ...(element.truncated !== undefined ? { truncated: element.truncated } : {}),
+        })
         break
       }
 

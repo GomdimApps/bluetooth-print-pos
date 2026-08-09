@@ -3,11 +3,12 @@ import { stripAccents } from '../Text/sample'
 import { wrapText } from '../Text/wrap'
 import { justifyLine } from '../Text/justify'
 import { prepareDitheredImage, type DitheredImage } from './imageDither'
-import { buildCode128 } from './code128'
-import { buildItf } from './itf'
-import { buildQrCode, type QrCodeDrawing } from './qrcode'
-import type { BarcodeDrawing } from './barcodeDrawing'
-import type { Alignment, PrintJob, PrinterWrapperConfig, PrintPreview } from '../types'
+import { buildCode128 } from './content/code128'
+import { buildItf } from './content/itf'
+import { buildQrCode, type QrCodeDrawing } from './core/qrcode'
+import { buildPdf417, resolvePdf417Columns } from './content/pdf417'
+import type { BarcodeDrawing, BarcodeBuildResult } from './core/barcodeDrawing'
+import type { Alignment, PrintJob, PrintJobElement, PrinterWrapperConfig, PrintPreview } from '../types'
 
 const MARGIN_PX = 16
 const FONT_FAMILY = 'ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace'
@@ -16,6 +17,8 @@ const CUT_HEIGHT_PX = 32
 const BARCODE_DEFAULT_MODULE_PX = 2
 const BARCODE_DEFAULT_HEIGHT_PX = 64
 const QRCODE_DEFAULT_CELL_PX = 6 // matches ReceiptPrinterEncoder.qrcode()'s own default `size`
+const PDF417_DEFAULT_SCALE = 3
+const PDF417_DEFAULT_HEIGHT_PX = 64 // only used for the placeholder shown when bwip-js rejects the value (e.g. empty)
 const TOO_WIDE_LABEL_HEIGHT_PX = 16
 const BLOCK_GAP_PX = 6
 const BACKGROUND = '#fff'
@@ -52,28 +55,9 @@ export async function renderPreviewCanvas(job: PrintJob, defaults: PrinterWrappe
 
   for (const element of job.content) {
     switch (element.type) {
-      case 'text': {
-        const value = stripAccentsEnabled ? stripAccents(element.value) : element.value
-        const [, sizeHeight] = Array.isArray(element.size) ? element.size : [element.size, element.size]
-        const scale = sizeHeight ?? 1
-        const align = element.align ?? 'left'
-        // 'justify' bakes its spacing into the line text itself (same as the
-        // real print path) — textDrawable only ever sees left/center/right.
-        const lines = wrapText(value, columns).map((wrapped) =>
-          align === 'justify' && !wrapped.isLastLineOfParagraph ? justifyLine(wrapped.text, columns) : wrapped.text,
-        )
-        drawables.push(
-          textDrawable(
-            lines,
-            align === 'justify' ? 'left' : align,
-            element.bold ?? false,
-            element.underline ?? false,
-            baseFontSizePx * scale,
-            lineHeightPx * scale,
-          ),
-        )
+      case 'text':
+        drawables.push(buildTextDrawable(element, columns, stripAccentsEnabled, baseFontSizePx, lineHeightPx))
         break
-      }
 
       case 'newline':
         drawables.push(spaceDrawable(lineHeightPx * (element.lines ?? 1)))
@@ -85,34 +69,22 @@ export async function renderPreviewCanvas(job: PrintJob, defaults: PrinterWrappe
 
       case 'image': {
         // eslint-disable-next-line no-await-in-loop -- preview mirrors the sequential real print path.
-        const dithered = await prepareDitheredImage(element.source, {
-          maxWidth: element.maxWidth ?? contentWidthPx,
-          minWidth: element.minWidth ?? defaults.imageMinWidth,
-          minHeight: element.minHeight ?? defaults.imageMinHeight,
-          threshold: element.threshold ?? defaults.imageThreshold,
-        })
-        if (dithered) drawables.push(imageDrawable(dithered, element.align ?? 'center'))
+        const drawable = await buildImageDrawable(element, defaults, contentWidthPx)
+        if (drawable) drawables.push(drawable)
         break
       }
 
-      case 'barcode': {
-        const symbology = element.symbology ?? 'code128'
-        const moduleWidthPx = element.width ?? BARCODE_DEFAULT_MODULE_PX
-        const heightPx = element.height ?? BARCODE_DEFAULT_HEIGHT_PX
-        const barcode = buildRealBarcode(symbology, element.value, moduleWidthPx, heightPx)
-        drawables.push(
-          barcode
-            ? realBarcodeDrawable(barcode, element.align ?? 'center', contentWidthPx)
-            : placeholderDrawable(symbology, element.value, heightPx, element.align ?? 'center'),
-        )
+      case 'barcode':
+        drawables.push(buildBarcodeDrawable(element, contentWidthPx))
         break
-      }
 
-      case 'qrcode': {
-        const cellSizePx = element.size ?? QRCODE_DEFAULT_CELL_PX
-        drawables.push(qrDrawable(buildQrCode(element.value, cellSizePx), element.align ?? 'center'))
+      case 'qrcode':
+        drawables.push(buildQrDrawable(element))
         break
-      }
+
+      case 'pdf417':
+        drawables.push(buildPdf417Drawable(element, contentWidthPx))
+        break
 
       default: {
         const exhaustiveCheck: never = element
@@ -121,7 +93,15 @@ export async function renderPreviewCanvas(job: PrintJob, defaults: PrinterWrappe
     }
   }
 
-  if ((job.cut ?? 'full') !== false) drawables.push(cutDrawable())
+  if ((job.cut ?? 'full') !== false) {
+    // Mirrors ReceiptBuilder.ts's feedBeforeCut: the real print feeds this
+    // many blank lines before the physical cut so the cutter doesn't slice
+    // through the last printed content — the preview must show the same
+    // gap, or it'd under-represent how much blank paper the real print uses.
+    const feedBeforeCut = job.feedBeforeCut ?? defaults.feedBeforeCut
+    if (feedBeforeCut > 0) drawables.push(spaceDrawable(lineHeightPx * feedBeforeCut))
+    drawables.push(cutDrawable())
+  }
 
   const canvas = document.createElement('canvas')
   canvas.width = contentWidthPx + MARGIN_PX * 2
@@ -162,6 +142,79 @@ function alignOffset(align: Alignment, contentWidthPx: number, blockWidthPx: num
   if (align === 'center') return Math.max(0, (contentWidthPx - blockWidthPx) / 2)
   if (align === 'right') return Math.max(0, contentWidthPx - blockWidthPx)
   return 0
+}
+
+function buildTextDrawable(
+  element: PrintJobElement & { type: 'text' },
+  columns: number,
+  stripAccentsEnabled: boolean,
+  baseFontSizePx: number,
+  lineHeightPx: number,
+): Drawable {
+  const value = stripAccentsEnabled ? stripAccents(element.value) : element.value
+  const [, sizeHeight] = Array.isArray(element.size) ? element.size : [element.size, element.size]
+  const scale = sizeHeight ?? 1
+  const align = element.align ?? 'left'
+
+  // 'justify' bakes its spacing into the line text itself (same as the
+  // real print path) — textDrawable only ever sees left/center/right.
+  const lines = wrapText(value, columns).map((wrapped) =>
+    align === 'justify' && !wrapped.isLastLineOfParagraph ? justifyLine(wrapped.text, columns) : wrapped.text,
+  )
+
+  return textDrawable(
+    lines,
+    align === 'justify' ? 'left' : align,
+    element.bold ?? false,
+    element.underline ?? false,
+    baseFontSizePx * scale,
+    lineHeightPx * scale,
+  )
+}
+
+async function buildImageDrawable(
+  element: PrintJobElement & { type: 'image' },
+  defaults: PrinterWrapperConfig,
+  contentWidthPx: number,
+): Promise<Drawable | null> {
+  const dithered = await prepareDitheredImage(element.source, {
+    maxWidth: element.maxWidth ?? contentWidthPx,
+    minWidth: element.minWidth ?? defaults.imageMinWidth,
+    minHeight: element.minHeight ?? defaults.imageMinHeight,
+    threshold: element.threshold ?? defaults.imageThreshold,
+  })
+  return dithered ? imageDrawable(dithered, element.align ?? 'center') : null
+}
+
+function buildBarcodeDrawable(element: PrintJobElement & { type: 'barcode' }, contentWidthPx: number): Drawable {
+  const symbology = element.symbology ?? 'code128'
+  const moduleWidthPx = element.width ?? BARCODE_DEFAULT_MODULE_PX
+  const heightPx = element.height ?? BARCODE_DEFAULT_HEIGHT_PX
+  const result = buildRealBarcode(symbology, element.value, moduleWidthPx, heightPx)
+  return 'drawing' in result
+    ? realBarcodeDrawable(result.drawing, element.align ?? 'center', contentWidthPx)
+    : placeholderDrawable(symbology, element.value, result.error, heightPx, element.align ?? 'center')
+}
+
+function buildQrDrawable(element: PrintJobElement & { type: 'qrcode' }): Drawable {
+  const cellSizePx = element.size ?? QRCODE_DEFAULT_CELL_PX
+  return qrDrawable(buildQrCode(element.value, cellSizePx), element.align ?? 'center')
+}
+
+/** Reuses realBarcodeDrawable()'s "too wide for paper" handling — PDF417 can overflow the paper just like a 1D barcode. */
+function buildPdf417Drawable(element: PrintJobElement & { type: 'pdf417' }, contentWidthPx: number): Drawable {
+  const moduleScale = element.width ?? PDF417_DEFAULT_SCALE
+  // Paper-width-preferred columns when unset, matching ReceiptBuilder.ts — AGENTS.md gotchas #4/#20/#21.
+  const columns = resolvePdf417Columns(element, contentWidthPx)
+  const result = buildPdf417(element.value, moduleScale, {
+    columns,
+    rows: element.rows,
+    errorlevel: element.errorlevel,
+    truncated: element.truncated,
+  })
+  return 'drawing' in result
+    ? realBarcodeDrawable(result.drawing, element.align ?? 'center', contentWidthPx)
+    : placeholderDrawable('pdf417', element.value, result.error, PDF417_DEFAULT_HEIGHT_PX, element.align ?? 'center')
 }
 
 function textDrawable(
@@ -216,10 +269,10 @@ function imageDrawable(dithered: DitheredImage, align: Alignment): Drawable {
 }
 
 /** 'itf'/'interleaved-2-of-5' matches the real encoder's own symbology aliases for ITF. */
-function buildRealBarcode(symbology: string, value: string, moduleWidthPx: number, heightPx: number): BarcodeDrawing | null {
+function buildRealBarcode(symbology: string, value: string, moduleWidthPx: number, heightPx: number): BarcodeBuildResult {
   if (symbology === 'code128') return buildCode128(value, moduleWidthPx, heightPx)
   if (symbology === 'itf' || symbology === 'interleaved-2-of-5') return buildItf(value, moduleWidthPx, heightPx)
-  return null
+  return { error: 'unsupported symbology' }
 }
 
 /** Draws a real barcode at its true computed size — if that's wider than the paper, it's left to
@@ -257,8 +310,14 @@ function qrDrawable(qr: QrCodeDrawing, align: Alignment): Drawable {
   }
 }
 
-/** Used for barcode symbologies other than 'code128', which we don't encode for real — see code128.ts. */
-function placeholderDrawable(symbology: string, value: string, heightPx: number, align: Alignment): Drawable {
+/**
+ * Shown whenever a real barcode/2D symbol couldn't be built — either the
+ * symbology is out of scope entirely, or it is supported but `value` was
+ * rejected by the real encoder (e.g. ITF given non-digit input). `reason`
+ * is the specific message for either case, surfaced directly rather than
+ * a single generic label, so the two situations aren't confused.
+ */
+function placeholderDrawable(symbology: string, value: string, reason: string, heightPx: number, align: Alignment): Drawable {
   const label = `[${symbology}] ${value}`
   return {
     heightPx,
@@ -273,7 +332,7 @@ function placeholderDrawable(symbology: string, value: string, heightPx: number,
 
       ctx.fillStyle = '#333'
       ctx.font = `12px ${FONT_FAMILY}`
-      ctx.fillText('not rendered — unsupported symbology', x + 4, y + heightPx / 2 - 14)
+      ctx.fillText(`not rendered — ${reason}`, x + 4, y + heightPx / 2 - 14)
       ctx.fillText(label, x + 4, y + heightPx / 2)
     },
   }

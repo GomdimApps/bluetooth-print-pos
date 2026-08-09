@@ -1,50 +1,23 @@
 # bluetooth-print-pos
 
-A communication wrapper for thermal receipt printers over **Web Bluetooth**.
-Builds receipts (text, images, barcodes, QR codes) from a JSON-serializable
-object and sends them to the printer — the caller never needs to know
-anything about ESC/POS encoding.
-
-It wraps two libraries from the [@point-of-sale](https://point-of-sale.dev)
-ecosystem:
-[`receipt-printer-encoder`](https://github.com/NielsLeenheer/ReceiptPrinterEncoder)
-(builds the commands) and
-[`webbluetooth-receipt-printer`](https://github.com/NielsLeenheer/WebBluetoothReceiptPrinter)
-(talks to the printer over Web Bluetooth).
-
-Runs **entirely in the browser, with no Node at runtime** — Node is only
-used at build time to produce the artifacts. It also includes a
-[print preview](#print-preview) that renders exactly what would be printed
-— text, images, barcodes, QR codes — as an image, with no printer needed.
+A communication wrapper for thermal receipt printers, over **Web
+Bluetooth** or via the **[QZ Tray](https://qz.io)** desktop app (for
+USB/OS-registered printers). Builds receipts (text, images, barcodes, QR
+codes, PDF417) from a JSON-serializable object and sends them to the
+printer — no ESC/POS knowledge needed. Runs **entirely in the browser, no
+Node at runtime**.
 
 ![Real thermal print next to the matching browser preview and connection log](docs/images/test-mobile-printer.png)
 
-*Left: real receipt off a Bluetooth thermal printer. Right: the exact same
-job rendered by [`renderPreview()`](#print-preview) in the browser, with
-the connection/print log underneath — no editing, this is the actual
+*Left: real receipt off a Bluetooth thermal printer. Right: the same job
+rendered by `renderPreview()` in the browser — no editing, actual
 side-by-side test output.*
-
-There are two ways to use it, covered in detail below:
-
-- **[Standalone](#standalone-usage-no-dependencies)** — a single self-contained `<script>` file, zero install, zero dependencies for the consumer.
-- **[As an npm package](#npm-package-usage)** — installed into a bundler-based project (Vite, webpack, Vue, etc.), with full TypeScript types.
 
 ## Standalone usage (no dependencies)
 
-This is for a plain HTML page or a webview: no bundler, no `npm install`,
-no build step at all on the consuming side. The published package already
-ships a prebuilt, self-contained UMD bundle at
-`build/printer-wrapper.js` — it bundles `@point-of-sale/receipt-printer-encoder`
-and `@point-of-sale/webbluetooth-receipt-printer` internally, so **you don't
-need to install or reference those two libraries yourself**.
-
-Grab that one file — either from
-`node_modules/bluetooth-print-pos/build/printer-wrapper.js` after
-`npm install bluetooth-print-pos` (just to extract the file, no `import`
-needed), from a CDN pointed at the npm package (e.g.
-`https://unpkg.com/bluetooth-print-pos/build/printer-wrapper.js`), or built
-from source with `npm run build:standalone` — and drop it into a
-`<script>` tag:
+For a plain HTML page or webview — no bundler, no `npm install`. The
+published package ships a prebuilt, self-contained UMD bundle at
+`build/printer-wrapper.js` (~325KB, ~108KB gzipped):
 
 ```html
 <script src="printer-wrapper.js"></script>
@@ -63,15 +36,9 @@ from source with `npm run build:standalone` — and drop it into a
 </script>
 ```
 
-See [demo/index.html](demo/index.html) for a complete working example
-(connect, print text, print an image, test print), and
-[docker-compose.yml](docker-compose.yml) to run that demo locally behind
-nginx on port 3000:
-
-```sh
-docker compose up
-# open http://localhost:3000/
-```
+See [demo/index.html](demo/index.html) for a full working example, and
+`docker compose up` (see [docker-compose.yml](docker-compose.yml)) to run
+it locally at `http://localhost:3000/`.
 
 ## npm package usage
 
@@ -86,7 +53,6 @@ const printer = new PrinterWrapper()
 
 async function onConnectClick() {
   const info = await printer.connect() // must be called from a click handler
-  console.log(`Connected to ${info.name}`)
 }
 
 async function onPrintClick() {
@@ -100,49 +66,25 @@ async function onPrintClick() {
 }
 ```
 
-The published ESM build treats `@point-of-sale/receipt-printer-encoder` and
-`@point-of-sale/webbluetooth-receipt-printer` as externals rather than
-bundling them, so they come along as regular npm `dependencies` and your
-own bundler (Vite/webpack) resolves and dedupes them normally. Full
-TypeScript declarations (`PrintJob`, `PrintJobElement`, `PrinterStatusEvent`,
-etc.) ship in `build/types` — the `import` above already gives you
-autocomplete.
-
-### `require()` usage — same self-contained bundle as standalone
-
-If your project uses `require()` instead of `import` — a Vue 2 app, an
-older webpack config, or plain Node-based tooling — `bluetooth-print-pos`
-resolves to the **same self-contained bundle as the
-[standalone](#standalone-usage-no-dependencies) `<script>` version**, not
-the ESM one. `@point-of-sale/receipt-printer-encoder` and
-`@point-of-sale/webbluetooth-receipt-printer` are already bundled in, so you
-don't need them as separate dependencies on this path either.
-
-```js
-const PrinterWrapper = require('bluetooth-print-pos')
-
-const printer = new PrinterWrapper()
-```
-
-Everything else — `connect()`, `printReceipt()`, image handling, etc. —
-works exactly like the example above.
-
-This works because the package's `exports` map routes the `require`
-condition to `build/printer-wrapper.js` (UMD, self-contained) while
-`import` routes to `build/printer-wrapper.esm.js` (externals) — same
-library, two different bundles depending on how you pull it in.
+`require('bluetooth-print-pos')` (Vue 2, older webpack, plain Node
+tooling) resolves to the same self-contained bundle as standalone above;
+`import` gets the ESM build with `@point-of-sale/receipt-printer-encoder`
+and `qz-tray` as externals instead. Full TypeScript declarations ship in
+`build/types`.
 
 ## API
 
 ```ts
 class PrinterWrapper {
-  static isSupported(): boolean
+  static isSupported(): boolean     // Web Bluetooth support
+  static isQzSupported(): boolean   // WebSocket support (not whether QZ Tray itself is running)
 
   constructor(config?: PrinterWrapperConfigInput)
 
   onStatusChange(cb: (event: PrinterStatusEvent) => void): () => void
 
-  connect(options?: { compat?: boolean }): Promise<PrinterInfo>     // must be called from a user click
+  connect(options?: { transport?: 'bluetooth'; compat?: boolean } | { transport: 'qz'; printerName?: string }): Promise<PrinterInfo>
+  listQzPrinters(query?: string): Promise<string[]>   // QZ Tray only — no native device picker, list then pick one
   disconnect(): Promise<void>
   isConnected(): boolean
   getPrinterInfo(): PrinterInfo | null
@@ -150,44 +92,55 @@ class PrinterWrapper {
   printReceipt(job: PrintJob): Promise<void>
   printRaw(bytes: Uint8Array | number[]): Promise<void>
 
-  renderPreview(job: PrintJob): Promise<PrintPreview>                              // no printer/connection needed
+  renderPreview(job: PrintJob): Promise<PrintPreview>   // no printer/connection needed — real scannable barcodes/QR/PDF417
   static renderPreview(job: PrintJob, config?: PrinterWrapperConfigInput): Promise<PrintPreview>
 }
 ```
 
 `PrintJob.content` is an ordered list of elements: `text`, `image`,
-`barcode`, `qrcode`, `newline`, `rule`. See [src/types.ts](src/types.ts)
-for the full shape of each one.
-
-Errors arrive as a rejected Promise with a `.code`:
+`barcode`, `qrcode`, `pdf417`, `newline`, `rule`. See
+[src/types.ts](src/types.ts) for the full shape of each one. Errors arrive
+as a rejected Promise with a `.code`:
 `unsupported | user-gesture-required | connect-cancelled | connect-failed | not-connected | busy | print-failed`.
 
-### Text alignment, including justify
+## Connecting
 
-A `text` element's `align` accepts `'left' | 'center' | 'right' | 'justify'`
-(the other elements — `image`/`barcode`/`qrcode` — only take the first
-three, alignment doesn't apply to `'justify'` there):
+Default `connect()` restricts the Bluetooth device picker to recognized
+printer profiles:
 
 ```ts
-{ type: 'text', value: 'Lorem ipsum dolor sit amet...', align: 'justify' }
+await printer.connect() // must be called from a real user click/tap
 ```
 
-`'justify'` stretches every line to the full paper width by distributing
-extra spaces between words — except a paragraph's last line, which is left
-ragged (standard convention, same as word processors). A single word too
-long to fit a line on its own is hyphenated (`-`) at the break instead of
-being cut silently.
+If your printer doesn't show up, use compatibility mode — the picker
+lists every nearby device instead, matching the profile *after*
+connecting (reaches more hardware, noisier picker):
 
-Alignment doesn't rely on the printer's own ESC/POS align command — some
-cheap clone printers don't honor it for plain text. Instead, every line is
-padded/justified into an exact-width string and sent as raw bytes, so
-alignment is correct on any hardware.
+```ts
+await printer.connect({ compat: true })
+```
 
-### Printer type and paper size
+For USB or other OS-registered printers, connect through
+[QZ Tray](https://qz.io) instead (install the desktop app, pair your
+printer there first). QZ has no native device picker, so list printers
+yourself and pick one:
 
-Paper width, protocol and codepage can all be injected — either once at
-construction time, or per print job (a per-job value always overrides the
-constructor's):
+```ts
+const printerNames = await printer.listQzPrinters() // opens the QZ Tray session if needed
+const info = await printer.connect({ transport: 'qz', printerName: printerNames[0] })
+// omit printerName to fall back to QZ Tray's own default printer
+```
+
+QZ Tray shows its own permission popup per connect/print unless you
+configure its certificate/signature plumbing yourself (not done by this
+library — see [QZ Tray's docs](https://qz.io/wiki/2.0-signing-messages)).
+Windows-only caveat:
+[docs/notes/08-qz-windows-raw-driver-routing.md](docs/notes/08-qz-windows-raw-driver-routing.md).
+
+## Config
+
+Paper width, protocol and codepage can be set once at construction, or
+per print job — a per-job value always overrides the constructor's:
 
 ```ts
 const printer = new PrinterWrapper({
@@ -195,109 +148,34 @@ const printer = new PrinterWrapper({
   language: 'star-prnt',    // 'esc-pos' | 'star-prnt' | 'star-line', default 'esc-pos'
   codepageMapping: 'xprinter', // for non-standard clone printers; forwarded as-is to ReceiptPrinterEncoder
   printerModel: 'epson-tm-t88vi', // lets ReceiptPrinterEncoder auto-configure known-model defaults
+  feedBeforeCut: 4,          // blank lines fed before the physical cut, default 4
 })
 
 // or per job:
 await printer.printReceipt({ paperWidth: '58mm', content: [...] })
 ```
 
-Note this is independent from `connect()`/`connect({ compat: true })`: the
 `language`/`codepageMapping` a Bluetooth profile reports on `PrinterInfo`
-after connecting is informational only — it isn't applied to
-`printReceipt()` automatically, so set it explicitly if you need it.
-
-### Compatibility mode
-
-`connect()` normally restricts the Bluetooth device picker to a small set
-of recognized printer profiles, so unrecognized models sometimes never show
-up as an option at all. Pass `{ compat: true }` to widen it: the picker
-lists every nearby Bluetooth device, and the printer profile is matched
-*after* connecting instead.
-
-```ts
-await printer.connect({ compat: true })
-```
-
-Try this when a printer doesn't show up, or doesn't connect, with the plain
-`connect()`. It reaches more hardware (including generic FF00-profile and
-PrinterBT/innoPrint-based printers) at the cost of a noisier device picker.
-
-## Print preview
-
-`renderPreview(job)` renders a `PrintJob` to a canvas that simulates
-*exactly* what would come out of the printer — same text wrapping, same
-image resize + dithering (byte-identical to the real print, via the same
-`canvas-dither` the encoder uses internally), real scannable Code128/ITF
-barcodes and QR codes — without a printer, without connecting, and without
-even a browser that supports Web Bluetooth. Use it to catch layout/content
-mistakes (cut-off text, distorted images, wrong paper width, bad barcode
-data) before ever touching hardware.
-
-```ts
-const preview = await printer.renderPreview(job)
-// preview: { canvas: HTMLCanvasElement, dataUrl: string, width: number, height: number }
-```
-
-Also available as a static method, so it works with zero setup — no
-instance, no connection:
-
-```ts
-const preview = await PrinterWrapper.renderPreview(job, { paperWidth: '80mm' })
-```
-
-`preview.dataUrl` is a `data:image/png` string — drop it straight into an
-`<img>`, in plain HTML, React or Vue:
-
-```html
-<!-- plain HTML -->
-<img id="previewImg" />
-<script>
-  const preview = await printer.renderPreview(job)
-  document.getElementById('previewImg').src = preview.dataUrl
-</script>
-```
-
-```jsx
-// React
-const [preview, setPreview] = useState(null)
-useEffect(() => { printer.renderPreview(job).then(setPreview) }, [job])
-return preview && <img src={preview.dataUrl} alt="Receipt preview" />
-```
-
-```vue
-<!-- Vue -->
-<img v-if="preview" :src="preview.dataUrl" />
-```
-```ts
-const preview = ref(null)
-onMounted(async () => { preview.value = await printer.renderPreview(job) })
-```
-
-**Scope note**: real barcode rendering covers `symbology: 'code128'` (the
-default) and `'itf'`/`'interleaved-2-of-5'` (bank slip/boleto-style numeric
-codes) — other symbologies (upc/ean13/code39/etc.) render as a labeled
-placeholder box instead of a real symbol, since implementing every ESC/POS
-symbology was out of scope for this pass.
-
-**"Too wide" warning**: some codes — a 44-digit boleto barcode is the
-classic case — are physically wider than the paper once rendered, and a
-real printer just prints its own `wide error!` instead of the barcode. The
-preview shows this ahead of time: it draws the barcode at its real size
-(clipped by the canvas edge, same as it'd be cut off in reality) with a red
-outline and a message telling you to reduce `width` or use a wider
-`paperWidth`. This is advisory only — `printReceipt()` always attempts the
-print regardless, since the real limit depends on the specific printer
-hardware, not just the configured paper width.
+is informational only — not applied to `printReceipt()` automatically. See
+[docs/notes/02-paperwidth-scales-columns-and-imagemaxwidth.md](docs/notes/02-paperwidth-scales-columns-and-imagemaxwidth.md)
+and
+[docs/notes/04-feedbeforecut-defaults-to-zero.md](docs/notes/04-feedbeforecut-defaults-to-zero.md)
+for why `paperWidth` and `feedBeforeCut` matter.
 
 ## Building from source
 
 ```sh
 npm install
-npm run build              # builds everything: UMD + ESM + .d.ts (what gets published to npm)
-npm run build:standalone   # builds only build/printer-wrapper.js (the standalone UMD bundle)
-npm run build:dev          # same as `build`, in watch mode
+npm run build              # UMD + ESM + .d.ts (what gets published to npm)
+npm run build:standalone   # only build/printer-wrapper.js
+npm run build:dev          # same as build, in watch mode
 ```
 
 ## License
 
 MIT
+
+Note: the standalone UMD bundle (`build/printer-wrapper.js`) statically
+includes [`qz-tray`](https://www.npmjs.com/package/qz-tray), licensed
+**LGPL-2.1** (every other bundled dependency is MIT). If you redistribute
+that bundle, check LGPL-2.1's compliance requirements.
