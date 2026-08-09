@@ -77,11 +77,13 @@ src/Images/image.ts             # loadImageFromSource/prepareImageForEncoder/app
 src/Preview/
   PreviewRenderer.ts            # PrintJob -> <canvas>, mirrors ReceiptBuilder.ts's element switch
   imageDither.ts                # reuses Images/image.ts sizing + canvas-dither for pixel-identical preview images
-  code128.ts                    # wraps @bwip-js/browser for a real, scannable Code128
-  itf.ts                        # wraps @bwip-js/browser for a real, scannable ITF (Interleaved 2 of 5)
-  qrcode.ts                     # wraps qrcode-generator for a real, scannable QR
-  pdf417.ts                     # wraps @bwip-js/browser for a real, scannable PDF417 (also picks the shared columns/errorlevel defaults — see gotchas #4/#20/#21)
-  barcodeDrawing.ts             # shared BarcodeDrawing interface (code128.ts + itf.ts + pdf417.ts)
+  core/
+    barcodeDrawing.ts           # shared BarcodeDrawing interface (content/code128.ts + itf.ts + pdf417.ts)
+    qrcode.ts                   # wraps qrcode-generator for a real, scannable QR
+  content/
+    code128.ts                  # wraps @bwip-js/browser for a real, scannable Code128
+    itf.ts                      # wraps @bwip-js/browser for a real, scannable ITF (Interleaved 2 of 5)
+    pdf417.ts                   # wraps @bwip-js/browser for a real, scannable PDF417 (also picks the shared columns/errorlevel defaults — see gotchas #4/#20/#21)
 
 demo/index.html                 # manual test page — Tailwind CDN for styling, loads ../build/printer-wrapper.js + app.js
 demo/app.js                     # demo page's own logic (DOM wiring, form → PrintJob) — no build step, loaded as a plain <script src>
@@ -123,15 +125,15 @@ These cost real debugging time. Don't reintroduce them.
 
 4. **`.barcode()`/`.qrcode()`/`.pdf417()`/`.image()` emit ESC/POS bytes
    only — the printer firmware draws the symbol**, so there's nothing to
-   reuse from the encoder for preview rendering. `Preview/code128.ts`/
+   reuse from the encoder for preview rendering. `Preview/content/code128.ts`/
    `itf.ts`/`pdf417.ts` are thin `@bwip-js/browser` wrappers (`bcid:
-   'code128'`/`'interleaved2of5'`/`'pdf417'`); `Preview/qrcode.ts` is
+   'code128'`/`'interleaved2of5'`/`'pdf417'`); `Preview/core/qrcode.ts` is
    independent, via `qrcode-generator`. Print-side correctness never
    depends on any of them, and vice versa — `ReceiptBuilder.ts` only calls
    the real encoder.
 
    **One deliberate exception**: `ReceiptBuilder.ts`'s `pdf417` case
-   imports `resolvePdf417Columns()` from `Preview/pdf417.ts` — only to pick
+   imports `resolvePdf417Columns()` from `Preview/content/pdf417.ts` — only to pick
    the `columns` value, not to draw anything. Without explicit `columns`,
    firmware and bwip-js each choose their own grid shape independently,
    producing visibly different (both scannable) symbols — confirmed on
@@ -269,7 +271,7 @@ These cost real debugging time. Don't reintroduce them.
     with `columns: 3` makes bwip-js reject with `pdf417insufficientCapacity`,
     while the real encoder happily emits ESC/POS bytes requesting that same
     impossible layout, leaving firmware behavior unverified. This is *why*
-    `resolvePdf417Columns()` (`Preview/pdf417.ts`, gotcha #4) exists: the
+    `resolvePdf417Columns()` (`Preview/content/pdf417.ts`, gotcha #4) exists: the
     shared capacity check both `ReceiptBuilder.ts` and `PreviewRenderer.ts`
     run before committing to a non-auto `columns`, falling back to
     fully-automatic (the pre-existing, safe behavior) when it doesn't fit.
@@ -282,7 +284,7 @@ These cost real debugging time. Don't reintroduce them.
     `eclevel: 2`. Higher error-correction needs more codewords (more rows)
     for identical data/columns — a second, subtler cause of preview-vs-print
     shape mismatch that survived even after `columns` was aligned (gotcha
-    #20). `Preview/pdf417.ts`'s `toBwipOptions()` now applies
+    #20). `Preview/content/pdf417.ts`'s `toBwipOptions()` now applies
     `DEFAULT_ERRORLEVEL` (`= 1`) uniformly whenever the job doesn't set
     `errorlevel`, so both `buildPdf417()` and `resolvePdf417Columns()`
     render/validate against the same level the real print already assumes.
@@ -296,7 +298,7 @@ These cost real debugging time. Don't reintroduce them.
     static import), webpack can't prove which symbologies are actually
     reachable and can't tree-shake the rest. Confirmed with a real
     throwaway build: the generic pattern minified to 907 KiB; switching
-    `Preview/pdf417.ts`/`code128.ts`/`itf.ts` to the named exports
+    `Preview/content/pdf417.ts`/`code128.ts`/`itf.ts` to the named exports
     (`pdf417`/`code128`/`interleaved2of5`, each calling its own BWIPP
     encoder directly, bypassing `bwipp_lookup` entirely) dropped that to
     168 KiB combined — confirmed byte-identical behavior between the two

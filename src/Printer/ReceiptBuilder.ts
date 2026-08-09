@@ -2,7 +2,7 @@ import ReceiptPrinterEncoder from '@point-of-sale/receipt-printer-encoder'
 import { resolveColumns, resolveImageMaxWidth } from '../../config'
 import { applyTextElement } from '../Text/sample'
 import { applyImageElement } from '../Images/image'
-import { resolvePdf417Columns } from '../Preview/pdf417'
+import { resolvePdf417Columns } from '../Preview/content/pdf417'
 import type { PrintJob, PrinterWrapperConfig } from '../types'
 
 // Barcode height/width defaults (encoder has none of its own). Matches

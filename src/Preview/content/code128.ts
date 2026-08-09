@@ -1,6 +1,6 @@
 import { code128 as bwipCode128 } from '@bwip-js/browser'
-import { errorMessage } from '../interfaces/printerErrors'
-import { cleanEncoderError, type BarcodeBuildResult } from './barcodeDrawing'
+import { errorMessage } from '../../interfaces/printerErrors'
+import { cleanEncoderError, type BarcodeBuildResult } from '../core/barcodeDrawing'
 
 /**
  * Real Code128 rendering, via @bwip-js/browser (already a dependency for

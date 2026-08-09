@@ -1,6 +1,6 @@
 import { interleaved2of5 as bwipInterleaved2of5 } from '@bwip-js/browser'
-import { errorMessage } from '../interfaces/printerErrors'
-import { cleanEncoderError, type BarcodeBuildResult } from './barcodeDrawing'
+import { errorMessage } from '../../interfaces/printerErrors'
+import { cleanEncoderError, type BarcodeBuildResult } from '../core/barcodeDrawing'
 
 /**
  * Real ITF (Interleaved 2 of 5) rendering, via @bwip-js/browser (already a

@@ -1,6 +1,6 @@
 import { pdf417 as bwipPdf417, drawingSVG } from '@bwip-js/browser'
-import { errorMessage } from '../interfaces/printerErrors'
-import type { BarcodeBuildResult } from './barcodeDrawing'
+import { errorMessage } from '../../interfaces/printerErrors'
+import type { BarcodeBuildResult } from '../core/barcodeDrawing'
 
 /**
  * Real PDF417 rendering, via `@bwip-js/browser` — an independent
