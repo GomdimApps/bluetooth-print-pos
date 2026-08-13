@@ -1,6 +1,6 @@
 {
   "name": "web-escpos-printer",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Print to ESC/POS/StarPRNT thermal receipt printers straight from the browser, over Web Bluetooth or QZ Tray, with no Node at runtime. Builds receipts (text, images, barcodes, QR, PDF417) from a JSON object, with a built-in preview renderer to test without a physical printer.",
   "main": "build/web-escpos-printer.js",
   "module": "build/web-escpos-printer.esm.js",
