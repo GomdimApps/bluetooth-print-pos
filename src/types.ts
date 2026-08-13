@@ -46,9 +46,15 @@ export interface WebEscposPrinterConfig {
 export type WebEscposPrinterConfigInput = Partial<WebEscposPrinterConfig> & { paperWidth?: PaperWidth }
 
 export interface PrinterInfo {
-  type: 'bluetooth' | 'qz'
+  type: 'bluetooth' | 'qz' | 'serial' | 'usb'
   name: string
-  /** For type: 'qz', this is just the QZ printer name — QZ has no separate device id the way Bluetooth's device.id does. */
+  /**
+   * For type: 'qz', this is just the QZ printer name — QZ has no separate
+   * device id the way Bluetooth's device.id does. For type: 'serial'/'usb',
+   * it's a vendor:product identifier (Web Serial has no persistent device
+   * id at all; WebUSB's serialNumber is preferred when the device reports
+   * one, see UsbTransport.ts).
+   */
   id: string
   language: 'esc-pos' | 'star-prnt' | 'star-line'
   codepageMapping?: unknown

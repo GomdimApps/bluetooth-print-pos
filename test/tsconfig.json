@@ -1,7 +1,7 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": {
-    "types": ["node", "web-bluetooth"],
+    "types": ["node", "web-bluetooth", "w3c-web-serial", "w3c-web-usb"],
     "noEmit": true
   },
   "include": ["**/*.ts", "../src/**/*.ts", "../config.ts", "../index.ts"]

@@ -4,8 +4,17 @@ const statusPill = document.getElementById('statusPill')
 const logEl = document.getElementById('log')
 const tabBluetooth = document.getElementById('tabBluetooth')
 const tabQz = document.getElementById('tabQz')
+const tabSerial = document.getElementById('tabSerial')
+const tabUsb = document.getElementById('tabUsb')
 const panelBluetooth = document.getElementById('panelBluetooth')
 const panelQz = document.getElementById('panelQz')
+const panelSerial = document.getElementById('panelSerial')
+const panelUsb = document.getElementById('panelUsb')
+const serialBanner = document.getElementById('serialBanner')
+const usbBanner = document.getElementById('usbBanner')
+const connectSerialBtn = document.getElementById('connectSerialBtn')
+const serialBaudRateInput = document.getElementById('serialBaudRateInput')
+const connectUsbBtn = document.getElementById('connectUsbBtn')
 const connectBtn = document.getElementById('connectBtn')
 const connectCompatBtn = document.getElementById('connectCompatBtn')
 const connectManualProfileBtn = document.getElementById('connectManualProfileBtn')
@@ -61,15 +70,22 @@ function setPill(el, state) {
   el.className = `${PILL_BASE} ${PILL_STATE[state] || PILL_STATE.idle}`
 }
 
-function selectTab(tab) {
-  const bluetooth = tab === 'bluetooth'
-  tabBluetooth.setAttribute('aria-selected', String(bluetooth))
-  tabQz.setAttribute('aria-selected', String(!bluetooth))
-  panelBluetooth.hidden = !bluetooth
-  panelQz.hidden = bluetooth
+const TABS = {
+  bluetooth: [tabBluetooth, panelBluetooth],
+  qz: [tabQz, panelQz],
+  serial: [tabSerial, panelSerial],
+  usb: [tabUsb, panelUsb],
+}
+function selectTab(name) {
+  for (const [key, [tabEl, panelEl]] of Object.entries(TABS)) {
+    tabEl.setAttribute('aria-selected', String(key === name))
+    panelEl.hidden = key !== name
+  }
 }
 tabBluetooth.onclick = () => selectTab('bluetooth')
 tabQz.onclick = () => selectTab('qz')
+tabSerial.onclick = () => selectTab('serial')
+tabUsb.onclick = () => selectTab('usb')
 
 const supported = WebEscposPrinter.isSupported()
 banner.textContent = supported ? 'Web Bluetooth supported' : 'Web Bluetooth not supported — use Chrome or Edge'
@@ -77,6 +93,16 @@ setPill(banner, supported ? 'ok' : 'fail')
 connectBtn.disabled = !supported
 connectCompatBtn.disabled = !supported
 connectManualProfileBtn.disabled = !supported
+
+const serialSupported = WebEscposPrinter.isSerialSupported()
+serialBanner.textContent = serialSupported ? 'Web Serial supported' : 'Web Serial not supported — use Chrome or Edge on desktop'
+setPill(serialBanner, serialSupported ? 'ok' : 'fail')
+connectSerialBtn.disabled = !serialSupported
+
+const usbSupported = WebEscposPrinter.isUsbSupported()
+usbBanner.textContent = usbSupported ? 'WebUSB supported' : 'WebUSB not supported — use Chrome or Edge on desktop'
+setPill(usbBanner, usbSupported ? 'ok' : 'fail')
+connectUsbBtn.disabled = !usbSupported
 
 const STATUS_PILL_STATE = { connected: 'ok', printing: 'busy', connecting: 'busy', error: 'fail' }
 
@@ -99,6 +125,8 @@ printer.onStatusChange((event) => {
   // gated by `supported` — only by having already connected/listed.
   qzListBtn.disabled = connected
   qzConnectBtn.disabled = connected || qzPrinterSelect.value === ''
+  connectSerialBtn.disabled = connected || !serialSupported
+  connectUsbBtn.disabled = connected || !usbSupported
 })
 
 connectBtn.onclick = async () => {
@@ -178,6 +206,27 @@ qzConnectBtn.onclick = async () => {
     log(`connected (QZ) to ${info.name}`)
   } catch (error) {
     log(`failed to connect (QZ): ${error.message}`)
+  }
+}
+
+connectSerialBtn.onclick = async () => {
+  const baudRate = serialBaudRateInput.value.trim()
+  const options = baudRate !== '' ? { baudRate: Number(baudRate) } : undefined
+
+  try {
+    const info = await printer.connect({ transport: 'serial', options })
+    log(`connected (Serial) to ${info.name}`)
+  } catch (error) {
+    log(`failed to connect (Serial): ${error.message}`)
+  }
+}
+
+connectUsbBtn.onclick = async () => {
+  try {
+    const info = await printer.connect({ transport: 'usb' })
+    log(`connected (USB) to ${info.name} (${info.language})`)
+  } catch (error) {
+    log(`failed to connect (USB): ${error.message}`)
   }
 }
 

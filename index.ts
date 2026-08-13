@@ -13,6 +13,9 @@
 export { WebEscposPrinter as default } from './src/Printer/WebEscposPrinter'
 export type { ConnectOptions } from './src/Printer/WebEscposPrinter'
 export type { BluetoothPrinterProfile } from './src/interfaces/bluetooth/profiles'
+export type { UsbPrinterProfile } from './src/interfaces/usb/profiles'
+export type { SerialConnectOptions, SerialPortIdentity } from './src/interfaces/serial/SerialTransport'
+export type { UsbDeviceIdentity } from './src/interfaces/usb/UsbTransport'
 export type {
   WebEscposPrinterConfig,
   WebEscposPrinterConfigInput,

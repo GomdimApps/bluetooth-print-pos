@@ -4,7 +4,7 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "lib": ["ES2020", "DOM"],
-    "types": ["web-bluetooth"],
+    "types": ["web-bluetooth", "w3c-web-serial", "w3c-web-usb"],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
