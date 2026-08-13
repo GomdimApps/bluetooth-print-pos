@@ -26,5 +26,8 @@ a valid plain-text substitute here. Off by default: the native rule
 character works fine on printers that support it, and produces a slightly
 different (solid vs. dashed) look.
 
+Pinned by `test/Printer/ReceiptBuilder.rule.test.ts` (native `rule()` never
+contains the plain-ASCII safeMode line, and vice versa).
+
 ---
 Referenced from [AGENTS.md](../../AGENTS.md)'s "Critical gotchas" section (gotcha #10).

@@ -11,5 +11,8 @@ shape mismatch that survived even after `columns` was aligned ([gotcha #5](05-bw
 `errorlevel`, so both `buildPdf417()` and `resolvePdf417Columns()`
 render/validate against the same level the real print already assumes.
 
+Pinned by `test/Printer/ReceiptBuilder.pdf417.test.ts` (an explicit
+`errorlevel: 1` must produce byte-identical output to leaving it unset).
+
 ---
 Referenced from [AGENTS.md](../../AGENTS.md)'s "Critical gotchas" section (gotcha #6).

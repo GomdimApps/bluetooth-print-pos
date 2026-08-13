@@ -22,5 +22,9 @@ correctly) vs. a clone Bluetooth printer (silently drops it, same bytes).
 bwip-js renderer `renderPreview()` already uses for the PDF417 preview.
 Other element types may gain the same flag later.
 
+Pinned by `test/Printer/SafeMode.test.ts` (the shared substitution
+mechanism) and `test/Printer/ReceiptBuilder.pdf417.test.ts`/`qrcode.test.ts`
+(safeMode produces different bytes than the native command, end-to-end).
+
 ---
 Referenced from [AGENTS.md](../../AGENTS.md)'s "Critical gotchas" section (gotcha #9).

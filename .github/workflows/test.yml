@@ -1,0 +1,31 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22   # Vitest 3's own supported range: ^18 || ^20 || >=22 (package.json#engines)
+
+      # `npm ci` pulls the `canvas` devDependency (see AGENTS.md's Testing
+      # section) — it ships prebuilt binaries for linux-x64-glibc, which
+      # ubuntu-latest is, so no apt-get should be needed. If a future runner
+      # image ever lacks a prebuilt and `canvas` falls back to compiling from
+      # source, uncomment the block below (node-canvas's own documented
+      # Debian/Ubuntu build dependencies):
+      #
+      # - run: sudo apt-get update && sudo apt-get install -y build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev
+
+      - run: npm ci
+      - run: npm test
+      - run: npx tsc --noEmit
+      - run: npx tsc --noEmit -p test/tsconfig.json
+      - run: npm run build

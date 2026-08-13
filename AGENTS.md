@@ -60,6 +60,13 @@ src/Preview/
 demo/index.html                 # manual test page — Tailwind CDN, loads ../build/web-escpos-printer.js + app.js
 demo/app.js                     # demo page's own logic — no build step
 Dockerfile / docker-compose.yml / scripts/nginx/default.conf   # serves demo/ + build/ on :3000
+
+test/                            # Vitest suite — see "## Testing" below
+  helpers/                       # buildEncoder/buildBytes/withDom/pixelFixture/assertBytes
+  config.test.ts, Text/, Images/, Preview/, Printer/   # mirrors the src/ tree above
+
+vitest.config.ts                 # test.include: test/**/*.test.ts
+.github/workflows/test.yml       # runs `npm test` on push/PR
 ```
 
 ## Critical gotchas (read before editing ReceiptBuilder.ts / Text / Preview)
@@ -144,11 +151,11 @@ time. Full report linked where one exists under `docs/notes/`.
   one → check the other. `wrapText`, `justifyLine`, image sizing/dithering
   are already shared for this reason; new alignment/layout logic should be
   shared the same way.
-- **No test framework.** Verification: `npm run build` + `npx tsc --noEmit`
-  + throwaway Node scripts that `import('@point-of-sale/receipt-printer-encoder')`
-  and inspect real encoded bytes + the Docker demo for real hardware.
-  Reproduce encoder bugs against the *real* installed library before
-  trusting a fix.
+- **Automated tests + the Docker demo.** `npm test` (see "## Testing" below)
+  covers everything DOM-free-or-jsdom-reachable; the Docker demo is still
+  the only way to confirm real hardware behavior. Reproduce encoder bugs
+  against the *real* installed library before trusting a fix — same
+  standard the test suite itself follows (no mocked encoder anywhere).
 - **Comments explain "why", not "what."**
 - **Don't hand-type `\uXXXX` escapes directly** — this environment has
   corrupted literal `\u0300-\u036f` (in `stripAccents()`) into raw
@@ -181,6 +188,59 @@ skipped entirely — the escape hatch for printers not in the table, no
 fork/rebuild needed. Not a "gotcha" (no hardware bug behind it, this is
 an intentional API) — see the README's "Manual Bluetooth profile"
 section for consumer-facing docs.
+
+## Testing
+
+```sh
+npm test                          # node:test, ~70 assertions, a few hundred ms
+npx tsc --noEmit                  # src/, unaffected by test/ — unchanged from before
+npx tsc --noEmit -p test/tsconfig.json   # type-checks test/ itself (own tsconfig: adds "node" types, noEmit)
+npm run build
+```
+
+`npm test` runs `vitest run` (config: `vitest.config.ts`, just
+`test.include: ['test/**/*.test.ts']`) — test files `import { describe, it,
+expect } from 'vitest'`, not `node:test`/`node:assert`. Vitest was chosen
+over `node:test` specifically because its resolver (Vite's, ESM-native,
+resolves extensions automatically) has no trouble with this repo's
+extension-less relative imports (`moduleResolution: "Bundler"`-style) or
+with dependencies whose `package.json#exports` defines only an `"import"`
+condition (e.g. `@bwip-js/browser`) — confirmed directly. `tsx` was tried
+first for this and hard-failed (`ERR_PACKAGE_PATH_NOT_EXPORTED`) on exactly
+that: without `"type": "module"` in *this* package's `package.json` (which
+can't be added — see below), `tsx` resolves bare specifiers via a
+CommonJS-style algorithm that can't see an import-only `exports` map — a
+plain Node `node:test` setup needed its own custom loader hook to work
+around the same issue; Vitest needs none of that. Don't add
+`"type": "module"` to fix this a different way: it would make
+`build/web-escpos-printer.js` (the UMD bundle) unrequireable, breaking the
+documented `require('web-escpos-printer')` compatibility path.
+
+Default test environment is Node, not Vitest's built-in `jsdom` — the
+DOM-dependent tests below use this repo's own `test/helpers/dom.ts#withDom()`
+(manual jsdom+`canvas` setup, scoped per test) instead, so DOM-free test
+files never see a jsdom global leak into them.
+
+**Scope**: everything DOM-free (the real encoder, `ReceiptBuilder.ts`'s
+dispatch logic, `Text/`, `config.ts`, `SafeMode.ts`,
+`resolvePdf417Columns()`) plus, via the `jsdom` + `canvas` devDependencies
+(`test/helpers/dom.ts`'s `withDom()`), the DOM-dependent layer too —
+`Images/image.ts`'s real source loading and the `Preview/` raster builders'
+actual pixel output (`buildQrCodeRasterImage`/`buildPdf417RasterImage`/
+`buildItf`). jsdom's own `HTMLCanvasElement`/`Image` pixel decoding is
+wired to the `canvas` npm package specifically (not `@napi-rs/canvas` —
+confirmed, jsdom doesn't know how to talk to it). Not covered: real
+Bluetooth/QZ transport connections and `profiles.ts`'s `findProfile()`
+(would need a mocked Web Bluetooth API, not requested), and pixel-perfect
+golden-image diffing (tests assert structural correctness — dimensions,
+multiple-of-8 padding, non-white pixels present — not exact pixel match).
+
+Most `docs/notes/*.md` gotchas now have a pinned regression test — see each
+note's own "Pinned by" line where present. A few genuinely can't be: real
+BLE characteristic behavior (#03) and Windows driver routing (#08) need
+actual hardware/OS, and bundle size (#07) is a build-output assertion, not
+a runtime one. Add a new `test/**/*.test.ts` file (mirroring the `src/`
+path of what it tests) for any new gotcha the same way.
 
 ## Docker demo
 

@@ -33,7 +33,8 @@
     "build:types": "tsc -p tsconfig.build.json",
     "build:dev": "webpack --mode development --watch",
     "prepublishOnly": "npm run build",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "keywords": [
     "pos",
@@ -53,6 +54,9 @@
   ],
   "author": "",
   "license": "MIT",
+  "engines": {
+    "node": "^18.0.0 || ^20.0.0 || >=22.0.0"
+  },
   "dependencies": {
     "@bwip-js/browser": "^4.11.2",
     "@point-of-sale/receipt-printer-encoder": "^3.0.3",
@@ -61,10 +65,15 @@
     "qz-tray": "^2.2.6"
   },
   "devDependencies": {
+    "@types/jsdom": "^30.0.0",
+    "@types/node": "^26.2.0",
     "@types/qz-tray": "^2.2.2",
     "@types/web-bluetooth": "^0.0.21",
+    "canvas": "^3.2.3",
+    "jsdom": "^27.0.1",
     "ts-loader": "^9.5.4",
     "typescript": "^6.0.2",
+    "vitest": "^3.2.7",
     "webpack": "^5.102.1",
     "webpack-cli": "^5.1.4"
   }
