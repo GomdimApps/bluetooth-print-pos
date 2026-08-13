@@ -251,6 +251,7 @@ npm install
 npm run build              # UMD + ESM + .d.ts (what gets published to npm)
 npm run build:standalone   # only build/web-escpos-printer.js
 npm run build:dev          # same as build, in watch mode
+npm test                   # node:test suite against the real encoder — see AGENTS.md's "Testing" section
 ```
 
 ## License

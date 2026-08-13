@@ -15,5 +15,7 @@ reason — `ReceiptBuilder.ts` always passes it explicitly;
 `PreviewRenderer.ts` mirrors the same gap before its "✂ cut" mark (see
 AGENTS.md's "preview/print parity" rule in "Coding conventions").
 
+Pinned by `test/config.test.ts` (`DEFAULT_CONFIG.feedBeforeCut` must stay `4`).
+
 ---
 Referenced from [AGENTS.md](../../AGENTS.md)'s "Critical gotchas" section (gotcha #4).

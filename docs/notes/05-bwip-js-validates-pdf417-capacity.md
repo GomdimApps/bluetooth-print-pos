@@ -11,5 +11,9 @@ run before committing to a non-auto `columns`, falling back to
 fully-automatic (the pre-existing, safe behavior) when it doesn't fit.
 Never pass a fixed `columns` to the real encoder without this check.
 
+Pinned by `test/Preview/pdf417.raster.test.ts`'s `resolvePdf417Columns`
+suite (auto mode must fall back to `undefined` instead of forwarding an
+overflowing `columns`) and its own capacity-error propagation test.
+
 ---
 Referenced from [AGENTS.md](../../AGENTS.md)'s "Critical gotchas" section (gotcha #5).
