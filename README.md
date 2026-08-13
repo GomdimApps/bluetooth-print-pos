@@ -27,10 +27,11 @@ side-by-side test output.*
 
 For a plain HTML page or webview — no bundler, no `npm install`. The
 published package ships a prebuilt, self-contained UMD bundle at
-`build/web-escpos-printer.js` (~325KB, ~108KB gzipped):
+`build/web-escpos-printer.js`, served straight
+off a CDN like [jsDelivr](https://www.jsdelivr.com/):
 
 ```html
-<script src="web-escpos-printer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/web-escpos-printer/build/web-escpos-printer.js"></script>
 <script>
   const printer = new WebEscposPrinter()
 
@@ -45,6 +46,10 @@ published package ships a prebuilt, self-contained UMD bundle at
     })
 </script>
 ```
+
+Pin a version for production (`@x.y.z` after the package name, e.g.
+`web-escpos-printer@1.1.0`) instead of the unpinned URL above — it always
+resolves to the latest release, which can break you without warning.
 
 See [demo/index.html](demo/index.html) for a full working example, and
 `docker compose up` (see [docker-compose.yml](docker-compose.yml)) to run
