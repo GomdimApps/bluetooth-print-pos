@@ -1,13 +1,10 @@
-# Gotcha #3: not every characteristic supports `writeValueWithResponse()`
+# Gotcha #3: not every BLE characteristic supports `writeValueWithResponse()`
 
-**Not every characteristic supports `writeValueWithResponse()`.**
-Confirmed on real hardware (MTP-II clone): its print characteristic
-only advertises `writeWithoutResponse`, so `writeValueWithResponse()`
-throws `NotSupportedError` (legacy DOMException `.code === 9`) on the
-first chunk. `writeChunked.ts`'s `pickWriter()` checks
-`characteristic.properties` and picks whichever method is actually
-supported (`write` preferred, `writeWithoutResponse` fallback) instead
-of assuming.
+Confirmed on an MTP-II clone: its print characteristic only advertises
+`writeWithoutResponse`, so `writeValueWithResponse()` throws
+`NotSupportedError` on the first chunk. `writeChunked.ts#pickWriter()`
+checks `characteristic.properties` and picks whichever method is
+actually supported instead of assuming.
 
 ---
-Referenced from [AGENTS.md](../../AGENTS.md)'s "Critical gotchas" section (gotcha #3).
+[AGENTS.md](../../AGENTS.md) gotcha #3.
