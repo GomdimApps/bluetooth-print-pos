@@ -4,6 +4,7 @@ import { applyTextElement } from '../Text/sample'
 import { sendLine } from '../Text/sendLine'
 import { applyImageElement } from '../Images/image'
 import { buildPdf417RasterImage, resolvePdf417Columns } from '../Preview/content/pdf417'
+import { buildQrCodeRasterImage } from '../Preview/core/qrcode'
 import { safeMode, safeModeText } from './Utils/SafeMode'
 import type { PrintJob, WebEscposPrinterConfig } from '../types'
 
@@ -74,8 +75,11 @@ export async function buildReceiptBytes(job: PrintJob, defaults: WebEscposPrinte
         break
 
       case 'qrcode': {
-        // Same undefined-key hazard as codepageMapping/printerModel — omit when not set.
         encoder.align(element.align ?? 'center')
+
+        if (safeMode(encoder, element.safeMode, 'qrcode', () => buildQrCodeRasterImage(element, imageMaxWidth), element)) break
+
+        // Same undefined-key hazard as codepageMapping/printerModel — omit when not set.
         const qrOptions = element.size !== undefined ? { size: element.size } : {}
         encoder.qrcode(element.value, qrOptions)
         break

@@ -118,12 +118,13 @@ as a rejected Promise with a `.code`:
 Some elements support `safeMode: true`: instead of sending the printer's
 native ESC/POS command, the element is rendered using a safer fallback —
 for printers whose firmware doesn't support the native one. A general
-per-element pattern: `pdf417` (raster image) and `rule` (plain ASCII `-`
-line) have it today; other elements (e.g. `text`, for printers with
-unreliable font/codepage support) may gain it later:
+per-element pattern: `pdf417` (raster image), `qrcode` (raster image) and
+`rule` (plain ASCII `-` line) have it today; other elements (e.g. `text`,
+for printers with unreliable font/codepage support) may gain it later:
 
 ```ts
 { type: 'pdf417', value: '...', safeMode: true }
+{ type: 'qrcode', value: '...', safeMode: true }
 { type: 'rule', safeMode: true }
 ```
 

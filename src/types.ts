@@ -130,7 +130,18 @@ export type PrintJobElement =
       width?: number
       align?: Alignment
     }
-  | { type: 'qrcode'; value: string; align?: Alignment; size?: number }
+  | {
+      type: 'qrcode'
+      value: string
+      align?: Alignment
+      size?: number
+      /**
+       * Prints this element as a raster image instead of its native ESC/POS
+       * command — see `safeMode` on the `pdf417` variant above for the
+       * general explanation. Default false.
+       */
+      safeMode?: boolean
+    }
   | {
       type: 'pdf417'
       value: string

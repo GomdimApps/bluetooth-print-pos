@@ -1,6 +1,6 @@
 import { pdf417 as bwipPdf417, drawingSVG } from '@bwip-js/browser'
 import { errorMessage } from '../../interfaces/printerErrors'
-import type { BarcodeBuildResult, BarcodeDrawing } from '../core/barcodeDrawing'
+import { roundUpToMultipleOf8, renderOntoWhiteCanvas, type BarcodeBuildResult } from '../core/barcodeDrawing'
 
 /**
  * Real PDF417 rendering, via `@bwip-js/browser` — an independent
@@ -112,33 +112,6 @@ export interface Pdf417RasterImage {
   canvas: HTMLCanvasElement
   width: number
   height: number
-}
-
-/** Smallest multiple of 8 >= px — encoder.image() throws ("Width/Height must be a multiple of 8") otherwise. */
-function roundUpToMultipleOf8(px: number): number {
-  return Math.ceil(px / 8) * 8
-}
-
-/**
- * Draws `drawing` onto a fresh `width`x`height` canvas, white-filled first.
- * Used to pad a symbol up to a multiple of 8 without cropping/scaling it —
- * matches encoder.image()'s own unconditional white-flatten step (confirmed
- * by reading the bundled encoder), done explicitly so this canvas is
- * correct on its own terms too.
- */
-function renderOntoWhiteCanvas(drawing: BarcodeDrawing, width: number, height: number): HTMLCanvasElement {
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
-
-  const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error('Canvas 2D is not supported in this browser.')
-
-  ctx.fillStyle = '#fff'
-  ctx.fillRect(0, 0, width, height)
-  drawing.render(ctx, 0, 0)
-
-  return canvas
 }
 
 /**

@@ -69,17 +69,18 @@ time. Full report linked where one exists under `docs/notes/`.
 
 1. **`.barcode()`/`.qrcode()`/`.pdf417()`/`.image()` emit ESC/POS bytes
    only — the printer firmware draws the symbol.** Preview rendering
-   (`Preview/`) is therefore independent of the real encoder, with two
-   exceptions, both in `ReceiptBuilder.ts`'s `pdf417` case and both
-   importing from `Preview/content/pdf417.ts`: `resolvePdf417Columns()`
-   always picks a `columns` value both sides agree on — without it,
-   firmware and bwip-js pick different (both scannable) grid shapes for
-   the same data (confirmed on real hardware); and, only when
-   `element.safeMode` is true, `buildPdf417RasterImage()` renders the
-   PDF417 with the same bwip-js code the preview uses and sends it via
-   `encoder.image()` instead of `encoder.pdf417()` (gotcha #9). See
-   gotchas #5/#6 below for why `resolvePdf417Columns()` needs a capacity
-   check first.
+   (`Preview/`) is therefore independent of the real encoder, with three
+   exceptions, all in `ReceiptBuilder.ts`: `resolvePdf417Columns()`
+   (`pdf417` case, from `Preview/content/pdf417.ts`) always picks a
+   `columns` value both sides agree on — without it, firmware and bwip-js
+   pick different (both scannable) grid shapes for the same data
+   (confirmed on real hardware); and, only when `element.safeMode` is
+   true, `buildPdf417RasterImage()` (`pdf417` case) / `buildQrCodeRasterImage()`
+   (`qrcode` case, from `Preview/core/qrcode.ts`) render the symbol with
+   the same bwip-js/qrcode-generator code the preview uses and send it via
+   `encoder.image()` instead of `encoder.pdf417()`/`encoder.qrcode()`
+   (gotcha #9). See gotchas #5/#6 below for why `resolvePdf417Columns()`
+   needs a capacity check first.
 
 2. **`paperWidth` must scale both `columns` and `imageMaxWidth`** — the
    latter also caps image resizing, preview canvas width, and the barcode
@@ -120,7 +121,10 @@ time. Full report linked where one exists under `docs/notes/`.
    case: cheap/clone Bluetooth printers that don't implement the native
    PDF417 command (`GS ( k`) at all, silently dropping it, while an Epson
    TM-T20X-II prints the same bytes fine — `pdf417`'s `safeMode: true`
-   renders it as a raster image instead.
+   renders it as a raster image instead. `qrcode`'s `safeMode: true` uses
+   the same raster mechanism (no confirmed hardware case yet — added
+   proactively to match the pattern, unlike pdf417/rule which came from
+   real bug reports).
    → [docs/notes/09-clone-printers-lack-native-pdf417.md](docs/notes/09-clone-printers-lack-native-pdf417.md)
 
 10. **`encoder.rule()` sends a cp437 box-drawing character (`─`/`═`) —
