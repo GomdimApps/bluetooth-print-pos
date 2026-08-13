@@ -5,29 +5,29 @@ before touching code.
 
 ## What this is
 
-`bluetooth-print-pos` wraps ESC/POS receipt printing, **entirely in the
+`web-escpos-printer` wraps ESC/POS receipt printing, **entirely in the
 browser, no Node at runtime**. Two transports share one `PrinterTransport`
 interface: Web Bluetooth (direct) and QZ Tray (talks to the
 [QZ Tray](https://qz.io) desktop app's local websocket, which talks to an
 OS-registered printer — USB or otherwise). Ships in two forms from one
 source via `webpack.config.js` (array of two configs):
 
-- **Standalone UMD** (`build/printer-wrapper.js`) — fully self-contained,
+- **Standalone UMD** (`build/web-escpos-printer.js`) — fully self-contained,
   bundles `@point-of-sale/*`, `canvas-dither`, `qrcode-generator`, `qz-tray`
   inside. Drop into a `<script>` tag, no bundler, no `npm install` needed.
-- **ESM** (`build/printer-wrapper.esm.js`) — for bundler consumers.
+- **ESM** (`build/web-escpos-printer.esm.js`) — for bundler consumers.
   `@point-of-sale/*` and `qz-tray` are `externals`, coming in as the
   consumer's own npm `dependencies` instead of duplicated.
 - `package.json#exports` routes `require` → UMD, `import` → ESM.
 
 `npm run build:standalone` builds only the UMD config — refreshes
-`build/printer-wrapper.js` for the demo without the full `build` (which
+`build/web-escpos-printer.js` for the demo without the full `build` (which
 also runs `tsc -p tsconfig.build.json` for `build/types/`).
 
 ## Directory map
 
 ```
-index.ts                        # webpack entry — re-exports PrinterWrapper + all public types
+index.ts                        # webpack entry — re-exports WebEscposPrinter + all public types
 config.ts                       # DEFAULT_CONFIG, PAPER_WIDTH_SPECS, resolveConfig/resolveColumns/resolveImageMaxWidth
 
 src/interfaces/
@@ -44,7 +44,7 @@ src/interfaces/
     QzTransport.ts               # QZ Tray transport — hands it the same ESC/POS bytes Bluetooth uses
 
 src/Printer/
-  PrinterWrapper.ts             # public API class — connect/disconnect/printReceipt/printRaw/renderPreview
+  WebEscposPrinter.ts           # public API class — connect/disconnect/printReceipt/printRaw/renderPreview
   ReceiptBuilder.ts             # PrintJob -> ESC/POS bytes via @point-of-sale/receipt-printer-encoder
 
 src/Text/                       # sample.ts (orchestrator), wrap.ts, justify.ts, sendLine.ts
@@ -56,7 +56,7 @@ src/Preview/
   core/                         # barcodeDrawing.ts (shared interface), qrcode.ts
   content/                      # code128.ts, itf.ts, pdf417.ts — @bwip-js/browser wrappers
 
-demo/index.html                 # manual test page — Tailwind CDN, loads ../build/printer-wrapper.js + app.js
+demo/index.html                 # manual test page — Tailwind CDN, loads ../build/web-escpos-printer.js + app.js
 demo/app.js                     # demo page's own logic — no build step
 Dockerfile / docker-compose.yml / nginx/default.conf   # serves demo/ + build/ on :3000
 ```

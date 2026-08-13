@@ -3,7 +3,7 @@ import { resolveColumns, resolveImageMaxWidth } from '../../config'
 import { applyTextElement } from '../Text/sample'
 import { applyImageElement } from '../Images/image'
 import { resolvePdf417Columns } from '../Preview/content/pdf417'
-import type { PrintJob, PrinterWrapperConfig } from '../types'
+import type { PrintJob, WebEscposPrinterConfig } from '../types'
 
 // Barcode height/width defaults (encoder has none of its own). Matches
 // PreviewRenderer.ts's defaults so preview and real print line up.
@@ -16,14 +16,14 @@ const BARCODE_DEFAULT_HEIGHT = 64
  * the calling HTML/JS builds without knowing anything about the encoder)
  * turns into real calls to the @point-of-sale/receipt-printer-encoder lib.
  */
-export async function buildReceiptBytes(job: PrintJob, defaults: PrinterWrapperConfig): Promise<Uint8Array> {
+export async function buildReceiptBytes(job: PrintJob, defaults: WebEscposPrinterConfig): Promise<Uint8Array> {
   const stripAccentsEnabled = job.stripAccents ?? defaults.stripAccents
 
   // job.paperWidth scales both columns and the image size ceiling, so a
   // wider paperWidth actually gives images more room — not just text.
   const columns = resolveColumns(job.columns, job.paperWidth, defaults.columns)
   const imageMaxWidth = resolveImageMaxWidth(undefined, job.paperWidth, defaults.imageMaxWidth)
-  const jobDefaults: PrinterWrapperConfig = { ...defaults, columns, imageMaxWidth }
+  const jobDefaults: WebEscposPrinterConfig = { ...defaults, columns, imageMaxWidth }
 
   // Only included when set — the encoder overwrites its own defaults if
   // these keys are present at all, even with value `undefined`.

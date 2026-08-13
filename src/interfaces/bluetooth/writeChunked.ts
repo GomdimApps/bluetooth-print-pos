@@ -24,7 +24,7 @@ function pickWriter(characteristic: BluetoothRemoteGATTCharacteristic): (data: B
  * CallbackQueue (both together): the original serializes chunk writes
  * through a small queue and optionally sleeps between them for printers
  * that need pacing — a plain sequential `for` + `await` has the same effect
- * here since PrinterWrapper already prevents overlapping print() calls
+ * here since WebEscposPrinter already prevents overlapping print() calls
  * (its `printing` busy flag), so there's no need for the queue class
  * itself, just the chunking + optional sleep behavior it provided.
  */

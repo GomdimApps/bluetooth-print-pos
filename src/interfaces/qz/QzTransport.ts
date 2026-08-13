@@ -23,7 +23,7 @@ export function isQzSupported(): boolean {
  * Unlike Bluetooth, QZ has no protocol to auto-detect (no BLE profile
  * matching) and no native OS device picker (no requestDevice()-style
  * dialog) — so `language`/`codepageMapping` on the resulting PrinterInfo
- * are just mirrored from whatever PrinterWrapperConfig this instance was
+ * are just mirrored from whatever WebEscposPrinterConfig this instance was
  * constructed with (purely informational: ReceiptBuilder.ts's
  * buildReceiptBytes() always encodes using job.language ?? defaults.language,
  * never PrinterInfo.language), and printer selection is done via
@@ -49,7 +49,7 @@ export class QzTransport implements PrinterTransport {
    * printerName: explicit target, normally chosen from listPrinters()'s
    * result. Falls back to qz.printers.getDefault() when omitted. Note this
    * has a different param list than PrinterTransport's zero-arg connect()
-   * — fine structurally (an extra optional param), but PrinterWrapper.connect()
+   * — fine structurally (an extra optional param), but WebEscposPrinter.connect()
    * has to call this directly (not through the generic PrinterTransport
    * interface) to actually pass printerName through.
    */

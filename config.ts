@@ -1,6 +1,6 @@
-import type { PaperWidth, PrinterWrapperConfig, PrinterWrapperConfigInput } from './src/types'
+import type { PaperWidth, WebEscposPrinterConfig, WebEscposPrinterConfigInput } from './src/types'
 
-export const DEFAULT_CONFIG: PrinterWrapperConfig = {
+export const DEFAULT_CONFIG: WebEscposPrinterConfig = {
   columns: 32,
   language: 'esc-pos',
   imageThreshold: 128,
@@ -49,7 +49,7 @@ export function resolveImageMaxWidth(explicit: number | undefined, paperWidth: P
 }
 
 /** Merges a partial config coming from the consumer (HTML/JS) with the defaults. */
-export function resolveConfig(input?: PrinterWrapperConfigInput): PrinterWrapperConfig {
+export function resolveConfig(input?: WebEscposPrinterConfigInput): WebEscposPrinterConfig {
   const { paperWidth, ...rest } = input ?? {}
   return {
     ...DEFAULT_CONFIG,

@@ -11,8 +11,8 @@ import type {
   PrinterInfo,
   PrinterStatusEvent,
   PrinterStatusName,
-  PrinterWrapperConfig,
-  PrinterWrapperConfigInput,
+  WebEscposPrinterConfig,
+  WebEscposPrinterConfigInput,
   PrintJob,
   PrintPreview,
 } from '../types'
@@ -41,15 +41,15 @@ export type ConnectOptions =
     }
 
 /**
- * Public API of the wrapper. This is what gets exposed as `window.PrinterWrapper`
+ * Public API of the wrapper. This is what gets exposed as `window.WebEscposPrinter`
  * in the UMD build, so any plain HTML/JS can do:
  *
- *   const printer = new PrinterWrapper()
+ *   const printer = new WebEscposPrinter()
  *   connectButton.onclick = () => printer.connect()
  *   printButton.onclick = () => printer.printReceipt({ content: [...] })
  */
-export class PrinterWrapper {
-  private readonly config: PrinterWrapperConfig
+export class WebEscposPrinter {
+  private readonly config: WebEscposPrinterConfig
   private readonly bluetooth = new DefaultBluetoothTransport()
   private readonly compatBluetooth = new CompatBluetoothTransport()
   private readonly qz: QzTransport
@@ -57,7 +57,7 @@ export class PrinterWrapper {
   private readonly listeners = new Set<(event: PrinterStatusEvent) => void>()
   private printing = false
 
-  constructor(config?: PrinterWrapperConfigInput) {
+  constructor(config?: WebEscposPrinterConfigInput) {
     this.config = resolveConfig(config)
     // Must be assigned here in the constructor body, not as a class-field
     // initializer above — field initializers run in declaration order
@@ -172,7 +172,7 @@ export class PrinterWrapper {
   }
 
   /** Same as the instance method, but usable with zero setup — no instance or connection needed at all. */
-  static renderPreview(job: PrintJob, config?: PrinterWrapperConfigInput): Promise<PrintPreview> {
+  static renderPreview(job: PrintJob, config?: WebEscposPrinterConfigInput): Promise<PrintPreview> {
     return renderPreviewCanvas(job, resolveConfig(config))
   }
 

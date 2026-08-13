@@ -14,7 +14,7 @@ export type Alignment = 'left' | 'center' | 'right'
 /** Text-only: stretches each line (except a paragraph's last) to fill the full column width. */
 export type TextAlignment = Alignment | 'justify'
 
-export interface PrinterWrapperConfig {
+export interface WebEscposPrinterConfig {
   /** Number of text columns the printer has (used for line wrapping and the test receipt). */
   columns: number
   /** Protocol used to build the commands. The printer reports the real one on the connection event. */
@@ -38,12 +38,12 @@ export interface PrinterWrapperConfig {
 }
 
 /**
- * Constructor input for PrinterWrapper: same as PrinterWrapperConfig, plus
+ * Constructor input for WebEscposPrinter: same as WebEscposPrinterConfig, plus
  * `paperWidth` as a convenience alternative to `columns`. `paperWidth` is
  * never stored on the resolved config — it's translated into `columns`
  * immediately by config.ts's resolveConfig()/resolveColumns().
  */
-export type PrinterWrapperConfigInput = Partial<PrinterWrapperConfig> & { paperWidth?: PaperWidth }
+export type WebEscposPrinterConfigInput = Partial<WebEscposPrinterConfig> & { paperWidth?: PaperWidth }
 
 export interface PrinterInfo {
   type: 'bluetooth' | 'qz'
@@ -150,7 +150,7 @@ export interface PrintJob {
   printerModel?: string
   /** Paper cut at the end. `false` to skip cutting. Default: 'full'. */
   cut?: 'full' | 'partial' | false
-  /** Blank lines fed before the cut. See PrinterWrapperConfig.feedBeforeCut. */
+  /** Blank lines fed before the cut. See WebEscposPrinterConfig.feedBeforeCut. */
   feedBeforeCut?: number
   stripAccents?: boolean
   content: PrintJobElement[]

@@ -1,5 +1,5 @@
 import type ReceiptPrinterEncoder from '@point-of-sale/receipt-printer-encoder'
-import type { ImageSource, PrintJobElement, PrinterWrapperConfig } from '../types'
+import type { ImageSource, PrintJobElement, WebEscposPrinterConfig } from '../types'
 
 /**
  * Loads any of the supported image sources into an HTMLImageElement ready
@@ -88,7 +88,7 @@ export function prepareImageForEncoder(img: HTMLImageElement, opts: ImagePrepOpt
 export async function applyImageElement(
   encoder: ReceiptPrinterEncoder,
   element: PrintJobElement & { type: 'image' },
-  defaults: PrinterWrapperConfig,
+  defaults: WebEscposPrinterConfig,
 ): Promise<void> {
   const img = await loadImageFromSource(element.source)
 
@@ -99,7 +99,7 @@ export async function applyImageElement(
   })
 
   if (!prepared) {
-    console.warn('[PrinterWrapper] Image skipped: invalid dimensions after resizing.', element)
+    console.warn('[WebEscposPrinter] Image skipped: invalid dimensions after resizing.', element)
     return
   }
 

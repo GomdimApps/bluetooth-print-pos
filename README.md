@@ -1,4 +1,6 @@
-# bluetooth-print-pos
+# web-escpos-printer
+
+[github.com/GomdimApps/web-escpos-printer](https://github.com/GomdimApps/web-escpos-printer)
 
 A communication wrapper for thermal receipt printers, over **Web
 Bluetooth** or via the **[QZ Tray](https://qz.io)** desktop app (for
@@ -17,12 +19,12 @@ side-by-side test output.*
 
 For a plain HTML page or webview — no bundler, no `npm install`. The
 published package ships a prebuilt, self-contained UMD bundle at
-`build/printer-wrapper.js` (~325KB, ~108KB gzipped):
+`build/web-escpos-printer.js` (~325KB, ~108KB gzipped):
 
 ```html
-<script src="printer-wrapper.js"></script>
+<script src="web-escpos-printer.js"></script>
 <script>
-  const printer = new PrinterWrapper()
+  const printer = new WebEscposPrinter()
 
   connectButton.onclick = () => printer.connect() // must be a real user click
   printButton.onclick = () =>
@@ -43,13 +45,13 @@ it locally at `http://localhost:3000/`.
 ## npm package usage
 
 ```sh
-npm install bluetooth-print-pos
+npm install web-escpos-printer
 ```
 
 ```ts
-import PrinterWrapper from 'bluetooth-print-pos'
+import WebEscposPrinter from 'web-escpos-printer'
 
-const printer = new PrinterWrapper()
+const printer = new WebEscposPrinter()
 
 async function onConnectClick() {
   const info = await printer.connect() // must be called from a click handler
@@ -66,7 +68,7 @@ async function onPrintClick() {
 }
 ```
 
-`require('bluetooth-print-pos')` (Vue 2, older webpack, plain Node
+`require('web-escpos-printer')` (Vue 2, older webpack, plain Node
 tooling) resolves to the same self-contained bundle as standalone above;
 `import` gets the ESM build with `@point-of-sale/receipt-printer-encoder`
 and `qz-tray` as externals instead. Full TypeScript declarations ship in
@@ -75,11 +77,11 @@ and `qz-tray` as externals instead. Full TypeScript declarations ship in
 ## API
 
 ```ts
-class PrinterWrapper {
+class WebEscposPrinter {
   static isSupported(): boolean     // Web Bluetooth support
   static isQzSupported(): boolean   // WebSocket support (not whether QZ Tray itself is running)
 
-  constructor(config?: PrinterWrapperConfigInput)
+  constructor(config?: WebEscposPrinterConfigInput)
 
   onStatusChange(cb: (event: PrinterStatusEvent) => void): () => void
 
@@ -93,7 +95,7 @@ class PrinterWrapper {
   printRaw(bytes: Uint8Array | number[]): Promise<void>
 
   renderPreview(job: PrintJob): Promise<PrintPreview>   // no printer/connection needed — real scannable barcodes/QR/PDF417
-  static renderPreview(job: PrintJob, config?: PrinterWrapperConfigInput): Promise<PrintPreview>
+  static renderPreview(job: PrintJob, config?: WebEscposPrinterConfigInput): Promise<PrintPreview>
 }
 ```
 
@@ -143,7 +145,7 @@ Paper width, protocol and codepage can be set once at construction, or
 per print job — a per-job value always overrides the constructor's:
 
 ```ts
-const printer = new PrinterWrapper({
+const printer = new WebEscposPrinter({
   paperWidth: '80mm',       // '58mm' | '80mm' | '112mm' — shorthand for `columns` AND the image/barcode width ceiling
   language: 'star-prnt',    // 'esc-pos' | 'star-prnt' | 'star-line', default 'esc-pos'
   codepageMapping: 'xprinter', // for non-standard clone printers; forwarded as-is to ReceiptPrinterEncoder
@@ -167,7 +169,7 @@ for why `paperWidth` and `feedBeforeCut` matter.
 ```sh
 npm install
 npm run build              # UMD + ESM + .d.ts (what gets published to npm)
-npm run build:standalone   # only build/printer-wrapper.js
+npm run build:standalone   # only build/web-escpos-printer.js
 npm run build:dev          # same as build, in watch mode
 ```
 
@@ -175,7 +177,7 @@ npm run build:dev          # same as build, in watch mode
 
 MIT
 
-Note: the standalone UMD bundle (`build/printer-wrapper.js`) statically
+Note: the standalone UMD bundle (`build/web-escpos-printer.js`) statically
 includes [`qz-tray`](https://www.npmjs.com/package/qz-tray), licensed
 **LGPL-2.1** (every other bundled dependency is MIT). If you redistribute
 that bundle, check LGPL-2.1's compliance requirements.

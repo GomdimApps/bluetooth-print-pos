@@ -18,8 +18,8 @@ function umdConfig(argv) {
     mode: argv.mode === 'production' ? 'production' : 'development',
     output: {
       path: path.resolve(__dirname, 'build'),
-      filename: 'printer-wrapper.js',
-      library: { name: 'PrinterWrapper', type: 'umd', export: 'default' },
+      filename: 'web-escpos-printer.js',
+      library: { name: 'WebEscposPrinter', type: 'umd', export: 'default' },
       globalObject: 'this',
     },
     resolve: {
@@ -41,7 +41,7 @@ function esmConfig(argv) {
     externalsType: 'module',
     output: {
       path: path.resolve(__dirname, 'build'),
-      filename: 'printer-wrapper.esm.js',
+      filename: 'web-escpos-printer.esm.js',
       library: { type: 'module' },
       module: true,
     },

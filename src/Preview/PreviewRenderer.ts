@@ -8,7 +8,7 @@ import { buildItf } from './content/itf'
 import { buildQrCode, type QrCodeDrawing } from './core/qrcode'
 import { buildPdf417, resolvePdf417Columns } from './content/pdf417'
 import type { BarcodeDrawing, BarcodeBuildResult } from './core/barcodeDrawing'
-import type { Alignment, PrintJob, PrintJobElement, PrinterWrapperConfig, PrintPreview } from '../types'
+import type { Alignment, PrintJob, PrintJobElement, WebEscposPrinterConfig, PrintPreview } from '../types'
 
 const MARGIN_PX = 16
 const FONT_FAMILY = 'ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace'
@@ -37,7 +37,7 @@ interface Drawable {
  * element (this also resolves async image loading and computes exact
  * sizes), then size the canvas once and draw everything.
  */
-export async function renderPreviewCanvas(job: PrintJob, defaults: PrinterWrapperConfig): Promise<PrintPreview> {
+export async function renderPreviewCanvas(job: PrintJob, defaults: WebEscposPrinterConfig): Promise<PrintPreview> {
   const columns = resolveColumns(job.columns, job.paperWidth, defaults.columns)
   const stripAccentsEnabled = job.stripAccents ?? defaults.stripAccents
   // Images are already sized against imageMaxWidth (in px/dots); reusing it as the
@@ -174,7 +174,7 @@ function buildTextDrawable(
 
 async function buildImageDrawable(
   element: PrintJobElement & { type: 'image' },
-  defaults: PrinterWrapperConfig,
+  defaults: WebEscposPrinterConfig,
   contentWidthPx: number,
 ): Promise<Drawable | null> {
   const dithered = await prepareDitheredImage(element.source, {

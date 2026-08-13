@@ -1,17 +1,25 @@
 {
-  "name": "bluetooth-print-pos",
+  "name": "web-escpos-printer",
   "version": "1.0.0",
   "description": "Wrapper de comunicacao com impressoras termicas via Web Bluetooth, para uso direto num <script> tag no navegador (sem Node em runtime) ou importado num bundler (Vite/webpack) como o de um projeto Vue.",
-  "main": "build/printer-wrapper.js",
-  "module": "build/printer-wrapper.esm.js",
+  "main": "build/web-escpos-printer.js",
+  "module": "build/web-escpos-printer.esm.js",
   "types": "build/types/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GomdimApps/web-escpos-printer.git"
+  },
+  "homepage": "https://github.com/GomdimApps/web-escpos-printer#readme",
+  "bugs": {
+    "url": "https://github.com/GomdimApps/web-escpos-printer/issues"
+  },
   "exports": {
     ".": {
       "types": "./build/types/index.d.ts",
-      "import": "./build/printer-wrapper.esm.js",
-      "browser": "./build/printer-wrapper.js",
-      "require": "./build/printer-wrapper.js",
-      "default": "./build/printer-wrapper.js"
+      "import": "./build/web-escpos-printer.esm.js",
+      "browser": "./build/web-escpos-printer.js",
+      "require": "./build/web-escpos-printer.js",
+      "default": "./build/web-escpos-printer.js"
     }
   },
   "files": [

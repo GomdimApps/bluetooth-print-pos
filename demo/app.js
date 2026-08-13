@@ -58,7 +58,7 @@ function selectTab(tab) {
 tabBluetooth.onclick = () => selectTab('bluetooth')
 tabQz.onclick = () => selectTab('qz')
 
-const supported = PrinterWrapper.isSupported()
+const supported = WebEscposPrinter.isSupported()
 banner.textContent = supported ? 'Web Bluetooth supported' : 'Web Bluetooth not supported — use Chrome or Edge'
 setPill(banner, supported ? 'ok' : 'fail')
 connectBtn.disabled = !supported
@@ -66,7 +66,7 @@ connectCompatBtn.disabled = !supported
 
 const STATUS_PILL_STATE = { connected: 'ok', printing: 'busy', connecting: 'busy', error: 'fail' }
 
-const printer = new PrinterWrapper()
+const printer = new WebEscposPrinter()
 
 printer.onStatusChange((event) => {
   statusEl.textContent = event.status
