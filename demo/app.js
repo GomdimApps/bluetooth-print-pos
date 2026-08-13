@@ -26,6 +26,8 @@ const qrInput = document.getElementById('qrInput')
 const pdf417Input = document.getElementById('pdf417Input')
 const pdf417TruncatedCheck = document.getElementById('pdf417TruncatedCheck')
 const pdf417SafeModeCheck = document.getElementById('pdf417SafeModeCheck')
+const ruleCheck = document.getElementById('ruleCheck')
+const ruleSafeModeCheck = document.getElementById('ruleSafeModeCheck')
 const previewBtn = document.getElementById('previewBtn')
 const previewImg = document.getElementById('previewImg')
 const previewPlaceholder = document.getElementById('previewPlaceholder')
@@ -142,6 +144,12 @@ function buildAsciiRuler() {
   return '1234567890 ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 }
 
+// Checking "Safe mode" alone should be enough to include a rule — keep the
+// "Rule" checkbox visually in sync instead of requiring both to be ticked.
+ruleSafeModeCheck.onchange = () => {
+  if (ruleSafeModeCheck.checked) ruleCheck.checked = true
+}
+
 function selectedPaperWidth() {
   return paperWidthSelect.value || undefined
 }
@@ -187,6 +195,7 @@ function buildJobFromForm() {
   if (barcodeValue) content.push({ type: 'barcode', value: barcodeValue, symbology: barcodeSymbologySelect.value })
   if (qrValue) content.push({ type: 'qrcode', value: qrValue })
   if (pdf417Value) content.push({ type: 'pdf417', value: pdf417Value, truncated: pdf417TruncatedCheck.checked, safeMode: pdf417SafeModeCheck.checked })
+  if (ruleCheck.checked || ruleSafeModeCheck.checked) content.push({ type: 'rule', safeMode: ruleSafeModeCheck.checked })
   content.push({ type: 'newline', lines: 2 })
 
   return content.length > 0 ? { paperWidth: selectedPaperWidth(), feedBeforeCut: selectedFeedBeforeCut(), content, cut: 'full' } : null

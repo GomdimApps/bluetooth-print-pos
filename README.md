@@ -116,21 +116,25 @@ as a rejected Promise with a `.code`:
 ## Safe mode (compatibility fallback)
 
 Some elements support `safeMode: true`: instead of sending the printer's
-native ESC/POS command, the element is rendered as a raster image and
-printed the same way an `image` element is — for printers whose firmware
-doesn't support that command. A general per-element pattern, not tied to
-one element type — `pdf417` has it today; other elements (e.g. `text`, for
-printers with unreliable font/codepage support) may gain it later:
+native ESC/POS command, the element is rendered using a safer fallback —
+for printers whose firmware doesn't support the native one. A general
+per-element pattern: `pdf417` (raster image) and `rule` (plain ASCII `-`
+line) have it today; other elements (e.g. `text`, for printers with
+unreliable font/codepage support) may gain it later:
 
 ```ts
 { type: 'pdf417', value: '...', safeMode: true }
+{ type: 'rule', safeMode: true }
 ```
 
-Off by default — the native command/rendering is smaller and works fine on
-printers that already support it. Confirmed case:
-[docs/notes/09-clone-printers-lack-native-pdf417.md](docs/notes/09-clone-printers-lack-native-pdf417.md)
-— some clone Bluetooth printers silently drop native PDF417 while an Epson
-prints the same bytes fine; `safeMode: true` works around it.
+Off by default — the native command/character is smaller (or, for `rule`,
+just looks different — solid vs. dashed) and works fine on printers that
+already support it. Confirmed cases: some clone Bluetooth printers
+silently drop native PDF417
+([docs/notes/09-clone-printers-lack-native-pdf417.md](docs/notes/09-clone-printers-lack-native-pdf417.md))
+and mangle the native rule character into garbage
+([docs/notes/10-clone-printers-mangle-rule-character.md](docs/notes/10-clone-printers-mangle-rule-character.md))
+— both while an Epson prints the same bytes fine.
 
 ## Connecting
 

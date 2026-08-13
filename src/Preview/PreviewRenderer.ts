@@ -64,7 +64,7 @@ export async function renderPreviewCanvas(job: PrintJob, defaults: WebEscposPrin
         break
 
       case 'rule':
-        drawables.push(ruleDrawable())
+        drawables.push(buildRuleDrawable(element, columns, baseFontSizePx, lineHeightPx))
         break
 
       case 'image': {
@@ -253,6 +253,22 @@ function textDrawable(
 
 function spaceDrawable(heightPx: number): Drawable {
   return { heightPx, draw() {} }
+}
+
+/**
+ * `safeMode` prints a plain ASCII `-` line instead of the encoder's native
+ * rule character — mirrors that here via textDrawable() (already used for
+ * text elements) instead of the solid filled line, so preview stays
+ * accurate to what safeMode actually prints.
+ */
+function buildRuleDrawable(
+  element: PrintJobElement & { type: 'rule' },
+  columns: number,
+  fontSizePx: number,
+  lineHeightPx: number,
+): Drawable {
+  if (element.safeMode) return textDrawable(['-'.repeat(columns)], 'left', false, false, fontSizePx, lineHeightPx)
+  return ruleDrawable()
 }
 
 function ruleDrawable(): Drawable {

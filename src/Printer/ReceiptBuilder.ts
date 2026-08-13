@@ -1,9 +1,10 @@
 import ReceiptPrinterEncoder from '@point-of-sale/receipt-printer-encoder'
 import { resolveColumns, resolveImageMaxWidth } from '../../config'
 import { applyTextElement } from '../Text/sample'
+import { sendLine } from '../Text/sendLine'
 import { applyImageElement } from '../Images/image'
 import { buildPdf417RasterImage, resolvePdf417Columns } from '../Preview/content/pdf417'
-import { safeMode } from './Utils/SafeMode'
+import { safeMode, safeModeText } from './Utils/SafeMode'
 import type { PrintJob, WebEscposPrinterConfig } from '../types'
 
 // Barcode height/width defaults (encoder has none of its own). Matches
@@ -55,6 +56,7 @@ export async function buildReceiptBytes(job: PrintJob, defaults: WebEscposPrinte
         break
 
       case 'rule':
+        if (safeModeText(element.safeMode, () => sendLine(encoder, '-'.repeat(columns), columns, 'left'))) break
         encoder.rule()
         break
 

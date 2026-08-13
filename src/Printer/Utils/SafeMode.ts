@@ -32,3 +32,16 @@ export function safeMode(
   encoder.image(raster.image.canvas, raster.image.width, raster.image.height, 'threshold')
   return true
 }
+
+/**
+ * Lighter safeMode variant for fallbacks that just need to run a callback
+ * when active — no raster/error handling, since a fallback like `rule`'s
+ * `'-'.repeat(columns)` can't fail the way a raster build can. Returns
+ * whether safeMode was active, same contract as safeMode() above, so
+ * ReceiptBuilder.ts's per-element cases branch on it the same way.
+ */
+export function safeModeText(active: boolean | undefined, apply: () => void): boolean {
+  if (!active) return false
+  apply()
+  return true
+}

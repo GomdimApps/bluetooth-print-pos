@@ -103,7 +103,15 @@ export type PrintJobElement =
       size?: number | [number, number]
     }
   | { type: 'newline'; lines?: number }
-  | { type: 'rule' }
+  | {
+      type: 'rule'
+      /**
+       * Prints a plain ASCII `-` line instead of the encoder's native rule
+       * character (a cp437 box-drawing glyph some clone printers' font
+       * tables don't match, printing garbage instead). Default false.
+       */
+      safeMode?: boolean
+    }
   | {
       type: 'image'
       source: ImageSource

@@ -114,13 +114,21 @@ time. Full report linked where one exists under `docs/notes/`.
    Reproduced on a real Epson TM-T20X-II.
    → [docs/notes/08-qz-windows-raw-driver-routing.md](docs/notes/08-qz-windows-raw-driver-routing.md)
 
-9. **`safeMode: true` prints an element as a raster image instead of its
-   native ESC/POS command, for printers that don't support that command.**
-   Confirmed case: cheap/clone Bluetooth printers that don't implement the
-   native PDF417 command (`GS ( k`) at all, silently dropping it, while an
-   Epson TM-T20X-II prints the same bytes fine — `pdf417` elements can set
-   `safeMode: true` to work around it. Only `pdf417` has the flag today.
+9. **`safeMode: true` prints an element using a fallback rendering instead
+   of its native ESC/POS command/character, for printers that mishandle
+   the native one — the fallback depends on the element type.** Confirmed
+   case: cheap/clone Bluetooth printers that don't implement the native
+   PDF417 command (`GS ( k`) at all, silently dropping it, while an Epson
+   TM-T20X-II prints the same bytes fine — `pdf417`'s `safeMode: true`
+   renders it as a raster image instead.
    → [docs/notes/09-clone-printers-lack-native-pdf417.md](docs/notes/09-clone-printers-lack-native-pdf417.md)
+
+10. **`encoder.rule()` sends a cp437 box-drawing character (`─`/`═`) —
+    some clone printers' font tables don't match it, printing garbage
+    (confirmed: `^^^^^^^^^`) instead of a line.** `rule` elements can set
+    `safeMode: true` to print a plain ASCII `-` line instead (same width,
+    always safe — ASCII 0x20-0x7E is identical across every codepage).
+    → [docs/notes/10-clone-printers-mangle-rule-character.md](docs/notes/10-clone-printers-mangle-rule-character.md)
 
 ## Coding conventions in this repo
 
