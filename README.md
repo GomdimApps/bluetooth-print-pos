@@ -2,6 +2,14 @@
 
 [github.com/GomdimApps/web-escpos-printer](https://github.com/GomdimApps/web-escpos-printer)
 
+This project started from a recurring pain: getting 58mm/80mm thermal
+printers to talk to an app, each one with its own fiddly, printer-specific
+setup. It came out of React Native and SPA/Laravel projects where we hit
+exactly that wall — our tech lead, [Sávio Godinho](https://github.com/saviogodinho2002),
+proposed building a library that simplified the whole flow, from
+connection to printing, shippable as a client-side module, with a preview
+renderer built in so a print could be tested without a physical printer.
+
 A communication wrapper for thermal receipt printers, over **Web
 Bluetooth** or via the **[QZ Tray](https://qz.io)** desktop app (for
 USB/OS-registered printers). Builds receipts (text, images, barcodes, QR
