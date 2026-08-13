@@ -11,11 +11,14 @@ connection to printing, shippable as a client-side module, with a preview
 renderer built in so a print could be tested without a physical printer.
 
 A communication wrapper for thermal receipt printers, over **Web
-Bluetooth** or via the **[QZ Tray](https://qz.io)** desktop app (for
-USB/OS-registered printers). Builds receipts (text, images, barcodes, QR
-codes, PDF417) from a JSON-serializable object and sends them to the
-printer — no ESC/POS knowledge needed. Runs **entirely in the browser, no
-Node at runtime**.
+Bluetooth**, **Web Serial** (a USB cable's virtual COM port — the reliable
+no-extra-software option across Windows/Linux/macOS), **WebUSB** (a USB
+device's bulk endpoint directly — works only when nothing else has
+claimed the device), or via the **[QZ Tray](https://qz.io)** desktop app
+(any OS-registered printer).
+Builds receipts (text, images, barcodes, QR codes, PDF417) from a
+JSON-serializable object and sends them to the printer — no ESC/POS
+knowledge needed. Runs **entirely in the browser, no Node at runtime**.
 
 ![Real thermal print next to the matching browser preview and connection log](docs/images/test-mobile-printer.png)
 
@@ -91,15 +94,24 @@ and `qz-tray` as externals instead. Full TypeScript declarations ship in
 
 ```ts
 class WebEscposPrinter {
-  static isSupported(): boolean     // Web Bluetooth support
-  static isQzSupported(): boolean   // WebSocket support (not whether QZ Tray itself is running)
+  static isSupported(): boolean         // Web Bluetooth support
+  static isQzSupported(): boolean       // WebSocket support (not whether QZ Tray itself is running)
+  static isSerialSupported(): boolean   // Web Serial support
+  static isUsbSupported(): boolean      // WebUSB support
 
   constructor(config?: WebEscposPrinterConfigInput)
 
   onStatusChange(cb: (event: PrinterStatusEvent) => void): () => void
 
-  connect(options?: { transport?: 'bluetooth'; compat?: boolean } | { transport: 'qz'; printerName?: string }): Promise<PrinterInfo>
+  connect(options?:
+    | { transport?: 'bluetooth'; compat?: boolean; profile?: BluetoothPrinterProfile }
+    | { transport: 'qz'; printerName?: string }
+    | { transport: 'serial'; options?: SerialConnectOptions }
+    | { transport: 'usb'; profile?: UsbPrinterProfile }
+  ): Promise<PrinterInfo>
   listQzPrinters(query?: string): Promise<string[]>   // QZ Tray only — no native device picker, list then pick one
+  reconnectSerial(previous: SerialPortIdentity, options?: SerialConnectOptions): Promise<PrinterInfo | null>   // no picker prompt
+  reconnectUsb(previous: UsbDeviceIdentity, profile?: UsbPrinterProfile): Promise<PrinterInfo | null>          // no picker prompt
   disconnect(): Promise<void>
   isConnected(): boolean
   getPrinterInfo(): PrinterInfo | null
@@ -202,10 +214,89 @@ Field meanings:
   [docs/notes/03-not-every-characteristic-supports-write-with-response.md](docs/notes/03-not-every-characteristic-supports-write-with-response.md)
   for background on why some printers need this at all.
 
-For USB or other OS-registered printers, connect through
-[QZ Tray](https://qz.io) instead (install the desktop app, pair your
-printer there first). QZ has no native device picker, so list printers
-yourself and pick one:
+### Web Serial (USB cable, recommended default)
+
+For a printer plugged in by USB cable, `transport: 'serial'` talks to the
+virtual COM port that cable exposes — the option confirmed to reliably
+work across Windows, Linux and macOS with **no extra software installed**
+(no QZ Tray, no driver juggling), including printers only paired over
+Bluetooth (their SPP virtual COM port works the same way). Chromium-based
+browsers only (Chrome/Edge desktop) — not Firefox or Safari.
+
+```ts
+const info = await printer.connect({ transport: 'serial' }) // must be a real user click/tap — shows the native port picker
+```
+
+The port picker shows every COM port (Web Serial has no vendor/product-id
+filtering the way Bluetooth/WebUSB do — nothing to filter by upfront) —
+except a port created by a vendor's own "virtual COM port" tool (e.g.
+Epson's TM Virtual Port Assignment Tool), which doesn't appear in the
+picker at all, even though Windows itself can use it fine
+([docs/notes/12-vendor-virtual-com-drivers-not-listed.md](docs/notes/12-vendor-virtual-com-drivers-not-listed.md)) —
+use QZ Tray below instead for those printers. Override the serial line
+settings if your printer needs something other than the default 9600
+baud / 8 data bits / 1 stop bit / no parity / no flow control:
+
+```ts
+await printer.connect({ transport: 'serial', options: { baudRate: 19200 } })
+```
+
+To skip the picker on a later visit (e.g. app reload), store `info.id`
+(a `vendorId:productId` string) from the first `connect()` call, split it
+back apart, and reconnect silently — no user gesture needed:
+
+```ts
+const info = await printer.reconnectSerial({ usbVendorId: 0x0483, usbProductId: 0x5740 })
+if (!info) await printer.connect({ transport: 'serial' }) // nothing to silently reconnect to — show the picker
+```
+
+### WebUSB (USB cable, works only when nothing else has claimed the device)
+
+`transport: 'usb'` talks directly to the printer's USB bulk endpoint — no
+protocol translation, the cleanest transport where it works. Chromium-based
+browsers only. **Not reliably available on any OS without extra setup**:
+the moment another driver has already claimed the device (an OS printer
+driver on Windows; the kernel's own `usblp` module, which auto-binds any
+USB Printer-Class device on plug-in, on Linux), `claimInterface()` throws
+outright with no code-level workaround — see
+[docs/notes/11-webusb-blocked-by-kernel-driver-claims.md](docs/notes/11-webusb-blocked-by-kernel-driver-claims.md)
+for the OS-level unbind steps. **Use Web Serial instead by default** —
+confirmed reliable on the same hardware WebUSB was blocked on.
+
+```ts
+const info = await printer.connect({ transport: 'usb' }) // must be a real user click/tap
+```
+
+The device picker is restricted to a built-in table of known printer
+vendor/product ids (`src/interfaces/usb/profiles.ts`). For a printer not in
+that table, pass your own profile — same escape hatch as
+`BluetoothPrinterProfile` above:
+
+```ts
+import type { UsbPrinterProfile } from 'web-escpos-printer'
+
+const myProfile: UsbPrinterProfile = {
+  filters: [{ vendorId: 0x0483, productId: 0x5743 }],
+  configuration: 1,
+  interface: 0,
+  language: 'esc-pos',
+  codepageMapping: 'default',
+}
+
+await printer.connect({ transport: 'usb', profile: myProfile })
+```
+
+`reconnectUsb()` mirrors `reconnectSerial()` — pass back `{ serialNumber,
+vendorId, productId }` (whatever `getPrinterInfo()` reported) to silently
+re-open a previously granted device with no picker prompt.
+
+### QZ Tray (fallback, any OS-registered printer)
+
+When neither direct transport above works for a printer (e.g. network
+printers, or a Windows driver blocking both Serial and USB), connect
+through [QZ Tray](https://qz.io) instead (install the desktop app, pair
+your printer there first). QZ has no native device picker, so list
+printers yourself and pick one:
 
 ```ts
 const printerNames = await printer.listQzPrinters() // opens the QZ Tray session if needed
@@ -251,7 +342,7 @@ npm install
 npm run build              # UMD + ESM + .d.ts (what gets published to npm)
 npm run build:standalone   # only build/web-escpos-printer.js
 npm run build:dev          # same as build, in watch mode
-npm test                   # node:test suite against the real encoder — see AGENTS.md's "Testing" section
+npm test                   # Vitest suite against the real encoder — see AGENTS.md's "Testing" section
 ```
 
 ## License

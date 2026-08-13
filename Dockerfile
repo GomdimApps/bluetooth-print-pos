@@ -1,5 +1,4 @@
-# Stage 1: builds the wrapper with webpack (Node only here, at build-time).
-FROM node:20-alpine AS build
+FROM node:20-slim AS build
 WORKDIR /app
 
 COPY package.json package-lock.json ./

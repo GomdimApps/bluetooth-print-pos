@@ -68,6 +68,8 @@
     "@types/jsdom": "^30.0.0",
     "@types/node": "^26.2.0",
     "@types/qz-tray": "^2.2.2",
+    "@types/w3c-web-serial": "^1.0.8",
+    "@types/w3c-web-usb": "^1.0.14",
     "@types/web-bluetooth": "^0.0.21",
     "canvas": "^3.2.3",
     "jsdom": "^27.0.1",

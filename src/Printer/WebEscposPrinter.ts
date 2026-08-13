@@ -2,11 +2,14 @@ import { resolveConfig } from '../../config'
 import { DefaultBluetoothTransport, isBluetoothSupported } from '../interfaces/bluetooth/DefaultBluetoothTransport'
 import { CompatBluetoothTransport } from '../interfaces/bluetooth/CompatBluetoothTransport'
 import { QzTransport, isQzSupported } from '../interfaces/qz/QzTransport'
+import { SerialTransport, isSerialSupported, type SerialConnectOptions, type SerialPortIdentity } from '../interfaces/serial/SerialTransport'
+import { UsbTransport, isUsbSupported, type UsbDeviceIdentity } from '../interfaces/usb/UsbTransport'
 import { buildReceiptBytes } from './ReceiptBuilder'
 import { normalizePrintError } from '../interfaces/printerErrors'
 import { renderPreviewCanvas } from '../Preview/PreviewRenderer'
 import type { PrinterTransport } from '../interfaces/PrinterTransport'
 import type { BluetoothPrinterProfile } from '../interfaces/bluetooth/profiles'
+import type { UsbPrinterProfile } from '../interfaces/usb/profiles'
 import type {
   PrinterError,
   PrinterInfo,
@@ -49,6 +52,30 @@ export type ConnectOptions =
        */
       printerName?: string
     }
+  | {
+      transport: 'serial'
+      /**
+       * Overrides for `SerialPort.open()` (baudRate/dataBits/stopBits/
+       * parity/flowControl/bufferSize). Defaults to 9600 8N1, no flow
+       * control — see SerialTransport.ts. The device picker itself shows
+       * every COM port; Web Serial has no vendor/product-id-based printer
+       * profile to filter it by, unlike Bluetooth/WebUSB.
+       */
+      options?: SerialConnectOptions
+    }
+  | {
+      transport: 'usb'
+      /**
+       * Skips profiles.ts's built-in USB profile table entirely and
+       * connects using this exact filters/configuration/interface/
+       * language/codepageMapping — for printers this library doesn't
+       * recognize. See UsbPrinterProfile
+       * (src/interfaces/usb/profiles.ts) for the full field shape — same
+       * escape hatch as Bluetooth's manual profile, see the README's
+       * "Manual Bluetooth profile" section.
+       */
+      profile?: UsbPrinterProfile
+    }
 
 /**
  * Public API of the wrapper. This is what gets exposed as `window.WebEscposPrinter`
@@ -63,17 +90,20 @@ export class WebEscposPrinter {
   private readonly bluetooth = new DefaultBluetoothTransport()
   private readonly compatBluetooth = new CompatBluetoothTransport()
   private readonly qz: QzTransport
+  private readonly serial: SerialTransport
+  private readonly usb = new UsbTransport()
   private active: PrinterTransport | null = null
   private readonly listeners = new Set<(event: PrinterStatusEvent) => void>()
   private printing = false
 
   constructor(config?: WebEscposPrinterConfigInput) {
     this.config = resolveConfig(config)
-    // Must be assigned here in the constructor body, not as a class-field
-    // initializer above — field initializers run in declaration order
+    // Must be assigned here in the constructor body, not as class-field
+    // initializers above — field initializers run in declaration order
     // before any of the constructor's own statements, so `this.config`
-    // wouldn't be populated yet if this were one too.
+    // wouldn't be populated yet if these were too.
     this.qz = new QzTransport({ language: this.config.language, codepageMapping: this.config.codepageMapping })
+    this.serial = new SerialTransport({ language: this.config.language, codepageMapping: this.config.codepageMapping })
   }
 
   /** true if the current browser supports Web Bluetooth. Never throws. */
@@ -89,6 +119,16 @@ export class WebEscposPrinter {
    */
   static isQzSupported(): boolean {
     return isQzSupported()
+  }
+
+  /** true if the current browser supports Web Serial. Never throws. */
+  static isSerialSupported(): boolean {
+    return isSerialSupported()
+  }
+
+  /** true if the current browser supports WebUSB. Never throws. */
+  static isUsbSupported(): boolean {
+    return isUsbSupported()
   }
 
   /** Subscribes to status/error changes. Returns a function to cancel the subscription. */
@@ -116,6 +156,16 @@ export class WebEscposPrinter {
    * Pass `{ transport: 'qz', printerName }` to connect through the QZ Tray
    * desktop app instead — see `listQzPrinters()` to discover `printerName`,
    * since QZ has no native OS device picker the way Web Bluetooth does.
+   *
+   * Pass `{ transport: 'serial' }` for a USB-cable printer reachable over
+   * its virtual COM port — the reliable no-extra-software option on
+   * Windows (see SerialTransport.ts). Pass `{ transport: 'usb' }` to talk
+   * to its USB bulk endpoint directly instead — cleaner where it works
+   * (Linux/macOS/Android), but blocked on Windows the moment an OS printer
+   * driver has already claimed the device (see UsbTransport.ts). Both also
+   * require a user gesture, same as Bluetooth. `reconnectSerial()`/
+   * `reconnectUsb()` re-open a previously granted port/device silently, no
+   * user gesture needed.
    */
   async connect(options?: ConnectOptions): Promise<PrinterInfo> {
     this.emit('connecting')
@@ -132,14 +182,24 @@ export class WebEscposPrinter {
   }
 
   /**
-   * One case per transport — adding a new one later (e.g. a future WebUSB
-   * transport) means adding a case here, not touching an if/else chain.
+   * One case per transport — adding a new one means adding a case here,
+   * not touching an if/else chain.
    */
   private async connectTransport(options?: ConnectOptions): Promise<{ transport: PrinterTransport; info: PrinterInfo }> {
     switch (options?.transport) {
       case 'qz': {
         const info = await this.qz.connect(options.printerName)
         return { transport: this.qz, info }
+      }
+
+      case 'serial': {
+        const info = await this.serial.connect(options.options)
+        return { transport: this.serial, info }
+      }
+
+      case 'usb': {
+        const info = await this.usb.connect(options.profile)
+        return { transport: this.usb, info }
       }
 
       case 'bluetooth':
@@ -161,6 +221,61 @@ export class WebEscposPrinter {
    */
   async listQzPrinters(query?: string): Promise<string[]> {
     return this.qz.listPrinters(query)
+  }
+
+  /**
+   * Silently re-opens a serial port the user already granted access to in
+   * a previous session — no native picker prompt, so this is safe to call
+   * on page load without a user gesture. `previous` is matched against
+   * `navigator.serial.getPorts()` by vendor/product id — see
+   * SerialTransport.reconnect(). Resolves to `null`, not an error, when
+   * nothing matches (e.g. first visit, or the port was revoked); call
+   * `connect({ transport: 'serial' })` in that case instead, which does
+   * show the picker.
+   */
+  async reconnectSerial(previous: SerialPortIdentity, options?: SerialConnectOptions): Promise<PrinterInfo | null> {
+    this.emit('connecting')
+    try {
+      const info = await this.serial.reconnect(previous, options)
+      if (info) {
+        this.active = this.serial
+        this.emit('connected', info)
+      } else {
+        this.emit('idle')
+      }
+      return info
+    } catch (error) {
+      const printerError = error as PrinterError
+      this.emit('error', null, printerError)
+      throw printerError
+    }
+  }
+
+  /**
+   * Silently re-opens a USB device the user already granted access to in a
+   * previous session — no native picker prompt, safe to call on page load.
+   * `previous` is matched against `navigator.usb.getDevices()` by
+   * serialNumber first, falling back to vendor/product id — see
+   * UsbTransport.reconnect(). Resolves to `null`, not an error, when
+   * nothing matches; call `connect({ transport: 'usb' })` in that case
+   * instead, which does show the picker.
+   */
+  async reconnectUsb(previous: UsbDeviceIdentity, profile?: UsbPrinterProfile): Promise<PrinterInfo | null> {
+    this.emit('connecting')
+    try {
+      const info = await this.usb.reconnect(previous, profile)
+      if (info) {
+        this.active = this.usb
+        this.emit('connected', info)
+      } else {
+        this.emit('idle')
+      }
+      return info
+    } catch (error) {
+      const printerError = error as PrinterError
+      this.emit('error', null, printerError)
+      throw printerError
+    }
   }
 
   async disconnect(): Promise<void> {
