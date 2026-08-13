@@ -58,7 +58,7 @@ src/Preview/
 
 demo/index.html                 # manual test page — Tailwind CDN, loads ../build/web-escpos-printer.js + app.js
 demo/app.js                     # demo page's own logic — no build step
-Dockerfile / docker-compose.yml / nginx/default.conf   # serves demo/ + build/ on :3000
+Dockerfile / docker-compose.yml / scripts/nginx/default.conf   # serves demo/ + build/ on :3000
 ```
 
 ## Critical gotchas (read before editing ReceiptBuilder.ts / Text / Preview)
