@@ -1,7 +1,7 @@
 {
   "name": "web-escpos-printer",
   "version": "1.1.0",
-  "description": "Wrapper de comunicacao com impressoras termicas via Web Bluetooth, para uso direto num <script> tag no navegador (sem Node em runtime) ou importado num bundler (Vite/webpack) como o de um projeto Vue.",
+  "description": "Print to ESC/POS/StarPRNT thermal receipt printers straight from the browser, over Web Bluetooth or QZ Tray, with no Node at runtime. Builds receipts (text, images, barcodes, QR, PDF417) from a JSON object, with a built-in preview renderer to test without a physical printer.",
   "main": "build/web-escpos-printer.js",
   "module": "build/web-escpos-printer.esm.js",
   "types": "build/types/index.d.ts",
@@ -37,11 +37,19 @@
   },
   "keywords": [
     "pos",
+    "point-of-sale",
     "escpos",
+    "star-prnt",
     "receipt-printer",
+    "thermal-printer",
     "bluetooth",
-    "webbluetooth",
-    "thermal-printer"
+    "web-bluetooth",
+    "qz-tray",
+    "barcode",
+    "qrcode",
+    "pdf417",
+    "browser",
+    "typescript"
   ],
   "author": "",
   "license": "MIT",
