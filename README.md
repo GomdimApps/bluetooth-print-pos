@@ -154,6 +154,49 @@ connecting (reaches more hardware, noisier picker):
 await printer.connect({ compat: true })
 ```
 
+### Manual Bluetooth profile
+
+If your printer isn't in this library's built-in profile table at all
+(or matches the wrong one), you don't need to fork/rebuild — pass your
+own profile directly, skipping the built-in table entirely:
+
+```ts
+import type { BluetoothPrinterProfile } from 'web-escpos-printer'
+
+const myProfile: BluetoothPrinterProfile = {
+  filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }],
+  service: '000018f0-0000-1000-8000-00805f9b34fb',
+  characteristic: '00002af1-0000-1000-8000-00805f9b34fb',
+  language: 'esc-pos',
+  codepageMapping: 'default',
+}
+
+await printer.connect({ profile: myProfile })
+// also works combined with compat mode:
+await printer.connect({ profile: myProfile, compat: true })
+```
+
+Field meanings:
+
+- `filters` — Web Bluetooth device-picker filters (same shape as
+  `requestDevice({ filters })`), OR'd together. Restricts the picker in
+  default mode; ignored (picker shows everything) in `compat: true` mode.
+- `service` / `characteristic` — the GATT service and characteristic
+  UUIDs to write ESC/POS bytes to. Find these with a BLE scanner app (e.g.
+  nRF Connect, LightBlue) against the target printer. If in doubt about
+  what you're looking at, cross-check against the
+  [Bluetooth GATT services specification](https://www.bluetooth.com/specifications/gatt/services)
+  — most clone printers use a vendor-specific (non-standard) service, but
+  a scanner may also show standard GATT services you should ignore.
+- `language` — `'esc-pos' | 'star-prnt' | 'star-line'`.
+- `codepageMapping` — forwarded as-is to `ReceiptPrinterEncoder`; use
+  `'default'` if unsure.
+- `messageSize` / `sleepAfterCommand` — optional BLE write pacing (max
+  bytes per chunk, delay between chunks) for printers that drop data
+  under the default pacing. See
+  [docs/notes/03-not-every-characteristic-supports-write-with-response.md](docs/notes/03-not-every-characteristic-supports-write-with-response.md)
+  for background on why some printers need this at all.
+
 For USB or other OS-registered printers, connect through
 [QZ Tray](https://qz.io) instead (install the desktop app, pair your
 printer there first). QZ has no native device picker, so list printers

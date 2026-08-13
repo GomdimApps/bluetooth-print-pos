@@ -35,6 +35,59 @@
           <button id="connectBtn" class="rounded-lg px-4 py-2 text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed bg-blue-600 dark:bg-blue-500 text-white">Connect</button>
           <button id="connectCompatBtn" class="text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed text-blue-600 dark:text-blue-400 underline">Printer not showing up? Try compatibility mode</button>
         </div>
+
+        <details class="mt-3 border-t border-gray-200 dark:border-neutral-800 pt-3">
+          <summary class="cursor-pointer font-semibold text-sm">Manual Bluetooth profile (unlisted printers)</summary>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+            Printer not in this library's built-in profile table? Build one here instead of forking/rebuilding —
+            see the README's "Manual Bluetooth profile" section for field meanings.
+          </p>
+
+          <label for="profileServiceInput" class="block mt-3 mb-1 text-sm font-semibold">Service UUID</label>
+          <input type="text" id="profileServiceInput" placeholder="e.g. 000018f0-0000-1000-8000-00805f9b34fb"
+            class="w-full bg-gray-50 dark:bg-neutral-950 border border-gray-200 dark:border-neutral-800 rounded-lg px-2.5 py-2 text-sm" />
+
+          <label for="profileCharacteristicInput" class="block mt-2 mb-1 text-sm font-semibold">Characteristic UUID</label>
+          <input type="text" id="profileCharacteristicInput" placeholder="e.g. 00002af1-0000-1000-8000-00805f9b34fb"
+            class="w-full bg-gray-50 dark:bg-neutral-950 border border-gray-200 dark:border-neutral-800 rounded-lg px-2.5 py-2 text-sm" />
+
+          <label for="profileNamePrefixInput" class="block mt-2 mb-1 text-sm font-semibold">Device name / name prefix filter (optional)</label>
+          <input type="text" id="profileNamePrefixInput" placeholder="e.g. MTP-II"
+            class="w-full bg-gray-50 dark:bg-neutral-950 border border-gray-200 dark:border-neutral-800 rounded-lg px-2.5 py-2 text-sm" />
+
+          <div class="flex gap-2 mt-2">
+            <div class="flex-1">
+              <label for="profileLanguageSelect" class="block mb-1 text-sm font-semibold">Language</label>
+              <select id="profileLanguageSelect" class="w-full bg-gray-50 dark:bg-neutral-950 border border-gray-200 dark:border-neutral-800 rounded-lg px-2.5 py-2 text-sm">
+                <option value="esc-pos" selected>esc-pos</option>
+                <option value="star-prnt">star-prnt</option>
+                <option value="star-line">star-line</option>
+              </select>
+            </div>
+            <div class="flex-1">
+              <label for="profileCodepageInput" class="block mb-1 text-sm font-semibold">codepageMapping</label>
+              <input type="text" id="profileCodepageInput" placeholder="Default"
+                class="w-full bg-gray-50 dark:bg-neutral-950 border border-gray-200 dark:border-neutral-800 rounded-lg px-2.5 py-2 text-sm" />
+            </div>
+          </div>
+
+          <div class="flex gap-2 mt-2">
+            <div class="flex-1">
+              <label for="profileMessageSizeInput" class="block mb-1 text-sm font-semibold">messageSize (optional)</label>
+              <input type="number" id="profileMessageSizeInput" min="1" placeholder="Default (100)"
+                title="Max bytes per BLE write, for printers that need smaller chunks"
+                class="w-full bg-gray-50 dark:bg-neutral-950 border border-gray-200 dark:border-neutral-800 rounded-lg px-2.5 py-2 text-sm" />
+            </div>
+            <div class="flex-1">
+              <label for="profileSleepInput" class="block mb-1 text-sm font-semibold">sleepAfterCommand ms (optional)</label>
+              <input type="number" id="profileSleepInput" min="0" placeholder="Default (0)"
+                title="Delay after each chunk write, for printers that need pacing"
+                class="w-full bg-gray-50 dark:bg-neutral-950 border border-gray-200 dark:border-neutral-800 rounded-lg px-2.5 py-2 text-sm" />
+            </div>
+          </div>
+
+          <button id="connectManualProfileBtn" class="mt-3 rounded-lg px-4 py-2 text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed bg-blue-600 dark:bg-blue-500 text-white">Connect with manual profile</button>
+        </details>
       </div>
 
       <div id="panelQz" hidden>

@@ -8,6 +8,14 @@ const panelBluetooth = document.getElementById('panelBluetooth')
 const panelQz = document.getElementById('panelQz')
 const connectBtn = document.getElementById('connectBtn')
 const connectCompatBtn = document.getElementById('connectCompatBtn')
+const connectManualProfileBtn = document.getElementById('connectManualProfileBtn')
+const profileServiceInput = document.getElementById('profileServiceInput')
+const profileCharacteristicInput = document.getElementById('profileCharacteristicInput')
+const profileNamePrefixInput = document.getElementById('profileNamePrefixInput')
+const profileLanguageSelect = document.getElementById('profileLanguageSelect')
+const profileCodepageInput = document.getElementById('profileCodepageInput')
+const profileMessageSizeInput = document.getElementById('profileMessageSizeInput')
+const profileSleepInput = document.getElementById('profileSleepInput')
 const disconnectBtn = document.getElementById('disconnectBtn')
 const qzListBtn = document.getElementById('qzListBtn')
 const qzPrinterSelect = document.getElementById('qzPrinterSelect')
@@ -68,6 +76,7 @@ banner.textContent = supported ? 'Web Bluetooth supported' : 'Web Bluetooth not 
 setPill(banner, supported ? 'ok' : 'fail')
 connectBtn.disabled = !supported
 connectCompatBtn.disabled = !supported
+connectManualProfileBtn.disabled = !supported
 
 const STATUS_PILL_STATE = { connected: 'ok', printing: 'busy', connecting: 'busy', error: 'fail' }
 
@@ -85,6 +94,7 @@ printer.onStatusChange((event) => {
   testPrintBtn.disabled = !connected
   connectBtn.disabled = connected || !supported
   connectCompatBtn.disabled = connected || !supported
+  connectManualProfileBtn.disabled = connected || !supported
   // QZ Tray works regardless of Web Bluetooth support, so it's not
   // gated by `supported` — only by having already connected/listed.
   qzListBtn.disabled = connected
@@ -104,6 +114,41 @@ connectCompatBtn.onclick = async () => {
   try {
     const info = await printer.connect({ compat: true })
     log(`connected (compatibility mode) to ${info.name} (${info.language})`)
+  } catch (error) {
+    log(`failed to connect: ${error.message}`)
+  }
+}
+
+function buildManualProfile() {
+  const service = profileServiceInput.value.trim()
+  const characteristic = profileCharacteristicInput.value.trim()
+  if (!service || !characteristic) return null
+
+  const namePrefix = profileNamePrefixInput.value.trim()
+  const messageSize = profileMessageSizeInput.value.trim()
+  const sleepAfterCommand = profileSleepInput.value.trim()
+
+  return {
+    filters: [namePrefix ? { namePrefix, services: [service] } : { services: [service] }],
+    service,
+    characteristic,
+    language: profileLanguageSelect.value,
+    codepageMapping: profileCodepageInput.value.trim() || 'default',
+    ...(messageSize !== '' ? { messageSize: Number(messageSize) } : {}),
+    ...(sleepAfterCommand !== '' ? { sleepAfterCommand: Number(sleepAfterCommand) } : {}),
+  }
+}
+
+connectManualProfileBtn.onclick = async () => {
+  const profile = buildManualProfile()
+  if (!profile) {
+    log('fill in at least Service UUID and Characteristic UUID')
+    return
+  }
+
+  try {
+    const info = await printer.connect({ profile })
+    log(`connected (manual profile) to ${info.name} (${info.language})`)
   } catch (error) {
     log(`failed to connect: ${error.message}`)
   }

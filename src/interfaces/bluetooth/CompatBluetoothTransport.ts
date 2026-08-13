@@ -24,7 +24,13 @@ export class CompatBluetoothTransport implements PrinterTransport {
     return this.info
   }
 
-  async connect(): Promise<PrinterInfo> {
+  /**
+   * `manualProfile` (from `WebEscposPrinter.connect({ profile, compat: true })`)
+   * bypasses profiles.ts's table entirely, same as DefaultBluetoothTransport.ts's
+   * connect() — only difference here is the picker already shows every
+   * device regardless, so only `optionalServices` needs its `service`.
+   */
+  async connect(manualProfile?: BluetoothPrinterProfile): Promise<PrinterInfo> {
     if (!isBluetoothSupported()) {
       throw toPrinterError('unsupported', 'This browser does not support Web Bluetooth.')
     }
@@ -33,14 +39,14 @@ export class CompatBluetoothTransport implements PrinterTransport {
     try {
       device = await navigator.bluetooth.requestDevice({
         acceptAllDevices: true,
-        optionalServices: ALL_SERVICE_UUIDS,
+        optionalServices: manualProfile ? [manualProfile.service, ...ALL_SERVICE_UUIDS] : ALL_SERVICE_UUIDS,
       })
     } catch (error) {
       throw normalizeConnectError(error)
     }
 
     try {
-      const { characteristic, profile, info } = await openConnection(device)
+      const { characteristic, profile, info } = await openConnection(device, manualProfile)
       this.device = device
       this.characteristic = characteristic
       this.profile = profile

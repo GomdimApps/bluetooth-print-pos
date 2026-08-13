@@ -27,7 +27,7 @@ interface OpenedConnection {
  * only differ in how the device is picked (`requestDevice()`'s `filters`
  * vs `acceptAllDevices`), everything after that is identical.
  */
-export async function openConnection(device: BluetoothDevice): Promise<OpenedConnection> {
+export async function openConnection(device: BluetoothDevice, manualProfile?: BluetoothPrinterProfile): Promise<OpenedConnection> {
   if (!device.gatt) {
     throw toPrinterError('connect-failed', `Printer "${deviceLabel(device)}" has no GATT server.`)
   }
@@ -36,7 +36,9 @@ export async function openConnection(device: BluetoothDevice): Promise<OpenedCon
   const services = await server.getPrimaryServices()
   const serviceUuids = services.map((service) => service.uuid)
 
-  const profile = findProfile(device.name, serviceUuids)
+  // manualProfile (from connect({ profile })) skips the table lookup
+  // entirely — the caller already knows their printer's profile.
+  const profile = manualProfile ?? findProfile(device.name, serviceUuids)
   if (!profile) {
     server.disconnect()
     throw toPrinterError(
@@ -79,7 +81,14 @@ export class DefaultBluetoothTransport implements PrinterTransport {
     return this.info
   }
 
-  async connect(): Promise<PrinterInfo> {
+  /**
+   * `manualProfile` (from `WebEscposPrinter.connect({ profile })`) bypasses
+   * profiles.ts's table entirely — for printers this library doesn't know
+   * about. Its own `filters` restrict the device picker instead of
+   * `ALL_FILTERS`, and its `service` is added to `optionalServices` so GATT
+   * can access it even if it's outside every known profile's service.
+   */
+  async connect(manualProfile?: BluetoothPrinterProfile): Promise<PrinterInfo> {
     if (!isBluetoothSupported()) {
       throw toPrinterError('unsupported', 'This browser does not support Web Bluetooth.')
     }
@@ -87,15 +96,15 @@ export class DefaultBluetoothTransport implements PrinterTransport {
     let device: BluetoothDevice
     try {
       device = await navigator.bluetooth.requestDevice({
-        filters: ALL_FILTERS,
-        optionalServices: ALL_SERVICE_UUIDS,
+        filters: manualProfile ? manualProfile.filters : ALL_FILTERS,
+        optionalServices: manualProfile ? [manualProfile.service, ...ALL_SERVICE_UUIDS] : ALL_SERVICE_UUIDS,
       })
     } catch (error) {
       throw normalizeConnectError(error)
     }
 
     try {
-      const { characteristic, profile, info } = await openConnection(device)
+      const { characteristic, profile, info } = await openConnection(device, manualProfile)
       this.device = device
       this.characteristic = characteristic
       this.profile = profile

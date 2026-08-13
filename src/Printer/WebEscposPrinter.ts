@@ -6,6 +6,7 @@ import { buildReceiptBytes } from './ReceiptBuilder'
 import { normalizePrintError } from '../interfaces/printerErrors'
 import { renderPreviewCanvas } from '../Preview/PreviewRenderer'
 import type { PrinterTransport } from '../interfaces/PrinterTransport'
+import type { BluetoothPrinterProfile } from '../interfaces/bluetooth/profiles'
 import type {
   PrinterError,
   PrinterInfo,
@@ -29,6 +30,15 @@ export type ConnectOptions =
        * connect, with the default `connect()`. See ../interfaces/bluetooth/CompatBluetoothTransport.ts.
        */
       compat?: boolean
+      /**
+       * Skips profiles.ts's built-in profile table entirely and connects
+       * using this exact filters/service/characteristic/language/codepageMapping
+       * — for printers this library doesn't recognize. See
+       * BluetoothPrinterProfile (src/interfaces/bluetooth/profiles.ts) for
+       * the full field shape, and the README's "Manual Bluetooth profile"
+       * section for how to build one. Works combined with `compat: true` too.
+       */
+      profile?: BluetoothPrinterProfile
     }
   | {
       transport: 'qz'
@@ -135,7 +145,7 @@ export class WebEscposPrinter {
       case 'bluetooth':
       case undefined: {
         const transport = options?.compat ? this.compatBluetooth : this.bluetooth
-        const info = await transport.connect()
+        const info = await transport.connect(options?.profile)
         return { transport, info }
       }
     }

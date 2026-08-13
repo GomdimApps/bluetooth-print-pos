@@ -35,7 +35,7 @@ src/interfaces/
   printerErrors.ts              # shared PrinterError normalization
 
   bluetooth/
-    profiles.ts                 # BLUETOOTH_PROFILES table + findProfile()
+    profiles.ts                 # BLUETOOTH_PROFILES table + findProfile() — connect({ profile }) bypasses both
     writeChunked.ts             # chunked BLE characteristic writes
     DefaultBluetoothTransport.ts   # default transport — requestDevice({ filters }) restricted to known profiles
     CompatBluetoothTransport.ts    # fallback transport — acceptAllDevices + post-connect profile matching
@@ -166,6 +166,21 @@ time. Full report linked where one exists under `docs/notes/`.
 - Justify/alignment padding only reaches the printer via the
   padding-preserving `raw()` path for pure-ASCII (32-126) lines; non-ASCII
   falls back to unpadded `encoder.text()`.
+
+## Bluetooth profile matching
+
+A connected device's profile (service/characteristic UUIDs, language,
+codepageMapping, write pacing) is resolved one of two ways, both through
+`openConnection()` (`DefaultBluetoothTransport.ts`, shared by both
+transports): normally via `findProfile()` matching the device's
+name/advertised services against `profiles.ts`'s `BLUETOOTH_PROFILES`
+table; or, when the caller passes `connect({ profile })`
+(`WebEscposPrinter.ts`'s `ConnectOptions.profile`), that exact
+`BluetoothPrinterProfile` is used directly and the table lookup is
+skipped entirely — the escape hatch for printers not in the table, no
+fork/rebuild needed. Not a "gotcha" (no hardware bug behind it, this is
+an intentional API) — see the README's "Manual Bluetooth profile"
+section for consumer-facing docs.
 
 ## Docker demo
 
