@@ -2,7 +2,8 @@ import ReceiptPrinterEncoder from '@point-of-sale/receipt-printer-encoder'
 import { resolveColumns, resolveImageMaxWidth } from '../../config'
 import { applyTextElement } from '../Text/sample'
 import { applyImageElement } from '../Images/image'
-import { resolvePdf417Columns } from '../Preview/content/pdf417'
+import { buildPdf417RasterImage, resolvePdf417Columns } from '../Preview/content/pdf417'
+import { safeMode } from './Utils/SafeMode'
 import type { PrintJob, WebEscposPrinterConfig } from '../types'
 
 // Barcode height/width defaults (encoder has none of its own). Matches
@@ -80,7 +81,10 @@ export async function buildReceiptBytes(job: PrintJob, defaults: WebEscposPrinte
 
       case 'pdf417': {
         encoder.align(element.align ?? 'center')
-        // Paper-width-preferred columns when unset, matching PreviewRenderer.ts — AGENTS.md gotchas #4/#20/#21.
+
+        if (safeMode(encoder, element.safeMode, 'pdf417', () => buildPdf417RasterImage(element, imageMaxWidth), element)) break
+
+        // Paper-width-preferred columns when unset, matching PreviewRenderer.ts — AGENTS.md gotcha #1 (see also #5/#6).
         const columns = resolvePdf417Columns(element, imageMaxWidth)
         encoder.pdf417(element.value, {
           ...(columns !== undefined ? { columns } : {}),

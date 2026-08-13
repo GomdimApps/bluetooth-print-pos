@@ -17,6 +17,7 @@ const testPrintBtn = document.getElementById('testPrintBtn')
 const paperWidthSelect = document.getElementById('paperWidthSelect')
 const textInput = document.getElementById('textInput')
 const alignSelect = document.getElementById('alignSelect')
+const feedBeforeCutInput = document.getElementById('feedBeforeCutInput')
 const boldCheck = document.getElementById('boldCheck')
 const imageInput = document.getElementById('imageInput')
 const barcodeInput = document.getElementById('barcodeInput')
@@ -24,6 +25,7 @@ const barcodeSymbologySelect = document.getElementById('barcodeSymbologySelect')
 const qrInput = document.getElementById('qrInput')
 const pdf417Input = document.getElementById('pdf417Input')
 const pdf417TruncatedCheck = document.getElementById('pdf417TruncatedCheck')
+const pdf417SafeModeCheck = document.getElementById('pdf417SafeModeCheck')
 const previewBtn = document.getElementById('previewBtn')
 const previewImg = document.getElementById('previewImg')
 const previewPlaceholder = document.getElementById('previewPlaceholder')
@@ -144,6 +146,11 @@ function selectedPaperWidth() {
   return paperWidthSelect.value || undefined
 }
 
+function selectedFeedBeforeCut() {
+  const value = feedBeforeCutInput.value.trim()
+  return value === '' ? undefined : Number(value)
+}
+
 testPrintBtn.onclick = async () => {
   try {
     await printer.printReceipt({
@@ -179,10 +186,10 @@ function buildJobFromForm() {
   for (const line of lines) content.push({ type: 'text', value: line, align, bold })
   if (barcodeValue) content.push({ type: 'barcode', value: barcodeValue, symbology: barcodeSymbologySelect.value })
   if (qrValue) content.push({ type: 'qrcode', value: qrValue })
-  if (pdf417Value) content.push({ type: 'pdf417', value: pdf417Value, truncated: pdf417TruncatedCheck.checked })
+  if (pdf417Value) content.push({ type: 'pdf417', value: pdf417Value, truncated: pdf417TruncatedCheck.checked, safeMode: pdf417SafeModeCheck.checked })
   content.push({ type: 'newline', lines: 2 })
 
-  return content.length > 0 ? { paperWidth: selectedPaperWidth(), content, cut: 'full' } : null
+  return content.length > 0 ? { paperWidth: selectedPaperWidth(), feedBeforeCut: selectedFeedBeforeCut(), content, cut: 'full' } : null
 }
 
 printBtn.onclick = async () => {

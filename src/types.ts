@@ -139,6 +139,16 @@ export type PrintJobElement =
       errorlevel?: number
       /** Truncated PDF417 (fewer bars per row, no right row-indicator/stop pattern) instead of standard. Default false. */
       truncated?: boolean
+      /**
+       * Prints this element as a raster image (the same renderer
+       * renderPreview() uses) instead of its native ESC/POS command — a
+       * general compatibility fallback for printers that don't support
+       * that command. Default false. `pdf417` has it today (some
+       * cheap/clone printers don't implement the PDF417 command at all);
+       * other element types (e.g. `text`, for printers with unreliable
+       * font/codepage support) may gain the same flag later.
+       */
+      safeMode?: boolean
     }
 
 export interface PrintJob {

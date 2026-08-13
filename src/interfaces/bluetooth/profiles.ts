@@ -76,13 +76,22 @@ export const BLUETOOTH_PROFILES: BluetoothPrinterProfile[] = [
     language: 'esc-pos',
     codepageMapping: 'xprinter',
   },
-  // MPT-II.
+  // MTP-II clone. Was `name: 'MPT-II'` (letters transposed) with an exact
+  // name match — the real device advertises as e.g. "MTP-II_4D4C" (MAC
+  // suffix), so it could never match either way and always fell through to
+  // the generic fallback below instead (wrong codepageMapping, no pacing).
+  // messageSize/sleepAfterCommand added after a real GATT disconnect mid-print
+  // sending a larger payload (a PDF417 safeMode raster image) at the
+  // fallback's un-paced 100-bytes-per-write default — unconfirmed exact
+  // values, a starting point to retest against, not a confirmed-safe pacing.
   {
-    filters: [{ name: 'MPT-II', services: ['000018f0-0000-1000-8000-00805f9b34fb'] }],
+    filters: [{ namePrefix: 'MTP-II', services: ['000018f0-0000-1000-8000-00805f9b34fb'] }],
     service: '000018f0-0000-1000-8000-00805f9b34fb',
     characteristic: '00002af1-0000-1000-8000-00805f9b34fb',
     language: 'esc-pos',
     codepageMapping: 'mpt',
+    messageSize: 20,
+    sleepAfterCommand: 20,
   },
   // Generic fallback for any other device advertising the 000018f0 service.
   {

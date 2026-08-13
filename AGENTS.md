@@ -46,6 +46,7 @@ src/interfaces/
 src/Printer/
   WebEscposPrinter.ts           # public API class — connect/disconnect/printReceipt/printRaw/renderPreview
   ReceiptBuilder.ts             # PrintJob -> ESC/POS bytes via @point-of-sale/receipt-printer-encoder
+  Utils/safemode.ts             # safeMode() — shared raster-image fallback for pdf417/etc. safeMode elements
 
 src/Text/                       # sample.ts (orchestrator), wrap.ts, justify.ts, sendLine.ts
 src/Images/image.ts             # loadImageFromSource/prepareImageForEncoder/applyImageElement (real print path)
@@ -68,13 +69,17 @@ time. Full report linked where one exists under `docs/notes/`.
 
 1. **`.barcode()`/`.qrcode()`/`.pdf417()`/`.image()` emit ESC/POS bytes
    only — the printer firmware draws the symbol.** Preview rendering
-   (`Preview/`) is therefore independent of the real encoder, with one
-   exception: `ReceiptBuilder.ts`'s `pdf417` case imports
-   `resolvePdf417Columns()` from `Preview/content/pdf417.ts` to pick a
-   `columns` value both sides agree on — without it, firmware and bwip-js
-   pick different (both scannable) grid shapes for the same data
-   (confirmed on real hardware). See gotchas #5/#6 below for why that
-   function has to do a capacity check first.
+   (`Preview/`) is therefore independent of the real encoder, with two
+   exceptions, both in `ReceiptBuilder.ts`'s `pdf417` case and both
+   importing from `Preview/content/pdf417.ts`: `resolvePdf417Columns()`
+   always picks a `columns` value both sides agree on — without it,
+   firmware and bwip-js pick different (both scannable) grid shapes for
+   the same data (confirmed on real hardware); and, only when
+   `element.safeMode` is true, `buildPdf417RasterImage()` renders the
+   PDF417 with the same bwip-js code the preview uses and sends it via
+   `encoder.image()` instead of `encoder.pdf417()` (gotcha #9). See
+   gotchas #5/#6 below for why `resolvePdf417Columns()` needs a capacity
+   check first.
 
 2. **`paperWidth` must scale both `columns` and `imageMaxWidth`** — the
    latter also caps image resizing, preview canvas width, and the barcode
@@ -108,6 +113,14 @@ time. Full report linked where one exists under `docs/notes/`.
    `GS ( k` (qrcode/pdf417) untouched, and there's no code-level fix.**
    Reproduced on a real Epson TM-T20X-II.
    → [docs/notes/08-qz-windows-raw-driver-routing.md](docs/notes/08-qz-windows-raw-driver-routing.md)
+
+9. **`safeMode: true` prints an element as a raster image instead of its
+   native ESC/POS command, for printers that don't support that command.**
+   Confirmed case: cheap/clone Bluetooth printers that don't implement the
+   native PDF417 command (`GS ( k`) at all, silently dropping it, while an
+   Epson TM-T20X-II prints the same bytes fine — `pdf417` elements can set
+   `safeMode: true` to work around it. Only `pdf417` has the flag today.
+   → [docs/notes/09-clone-printers-lack-native-pdf417.md](docs/notes/09-clone-printers-lack-native-pdf417.md)
 
 ## Coding conventions in this repo
 

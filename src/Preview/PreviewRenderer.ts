@@ -201,7 +201,14 @@ function buildQrDrawable(element: PrintJobElement & { type: 'qrcode' }): Drawabl
   return qrDrawable(buildQrCode(element.value, cellSizePx), element.align ?? 'center')
 }
 
-/** Reuses realBarcodeDrawable()'s "too wide for paper" handling — PDF417 can overflow the paper just like a 1D barcode. */
+/**
+ * Reuses realBarcodeDrawable()'s "too wide for paper" handling — PDF417 can
+ * overflow the paper just like a 1D barcode. Doesn't read `element.safeMode`
+ * — the preview always renders a real bwip-js raster either way, so
+ * safeMode (which only changes how ReceiptBuilder.ts sends bytes for real
+ * print: native .pdf417() vs. a raster image) doesn't change what preview
+ * shows.
+ */
 function buildPdf417Drawable(element: PrintJobElement & { type: 'pdf417' }, contentWidthPx: number): Drawable {
   const moduleScale = element.width ?? PDF417_DEFAULT_SCALE
   // Paper-width-preferred columns when unset, matching ReceiptBuilder.ts — AGENTS.md gotchas #4/#20/#21.

@@ -1,6 +1,6 @@
 import { pdf417 as bwipPdf417, drawingSVG } from '@bwip-js/browser'
 import { errorMessage } from '../../interfaces/printerErrors'
-import type { BarcodeBuildResult } from '../core/barcodeDrawing'
+import type { BarcodeBuildResult, BarcodeDrawing } from '../core/barcodeDrawing'
 
 /**
  * Real PDF417 rendering, via `@bwip-js/browser` — an independent
@@ -17,6 +17,16 @@ import type { BarcodeBuildResult } from '../core/barcodeDrawing'
  */
 export interface Pdf417Options {
   columns?: number
+  rows?: number
+  errorlevel?: number
+  truncated?: boolean
+}
+
+/** Shape both resolvePdf417Columns() and buildPdf417RasterImage() need from a `pdf417` PrintJobElement. */
+export interface Pdf417ElementLike {
+  value: string
+  columns?: number
+  width?: number
   rows?: number
   errorlevel?: number
   truncated?: boolean
@@ -65,10 +75,7 @@ function preferredColumns(widthBudgetPx: number, moduleWidthDots: number): numbe
  * `ReceiptBuilder.ts` and `PreviewRenderer.ts` both call this, so real print
  * and preview always agree on the same `columns` (AGENTS.md gotcha #1).
  */
-export function resolvePdf417Columns(
-  element: { value: string; columns?: number; width?: number; rows?: number; errorlevel?: number; truncated?: boolean },
-  widthBudgetPx: number,
-): number | undefined {
+export function resolvePdf417Columns(element: Pdf417ElementLike, widthBudgetPx: number): number | undefined {
   if (element.columns !== undefined) return element.columns
 
   const preferred = preferredColumns(widthBudgetPx, element.width ?? DEFAULT_MODULE_WIDTH)
@@ -98,5 +105,69 @@ export function buildPdf417(value: string, moduleScale: number, options: Pdf417O
         ctx.drawImage(offscreen, x, y)
       },
     },
+  }
+}
+
+export interface Pdf417RasterImage {
+  canvas: HTMLCanvasElement
+  width: number
+  height: number
+}
+
+/** Smallest multiple of 8 >= px — encoder.image() throws ("Width/Height must be a multiple of 8") otherwise. */
+function roundUpToMultipleOf8(px: number): number {
+  return Math.ceil(px / 8) * 8
+}
+
+/**
+ * Draws `drawing` onto a fresh `width`x`height` canvas, white-filled first.
+ * Used to pad a symbol up to a multiple of 8 without cropping/scaling it —
+ * matches encoder.image()'s own unconditional white-flatten step (confirmed
+ * by reading the bundled encoder), done explicitly so this canvas is
+ * correct on its own terms too.
+ */
+function renderOntoWhiteCanvas(drawing: BarcodeDrawing, width: number, height: number): HTMLCanvasElement {
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Canvas 2D is not supported in this browser.')
+
+  ctx.fillStyle = '#fff'
+  ctx.fillRect(0, 0, width, height)
+  drawing.render(ctx, 0, 0)
+
+  return canvas
+}
+
+/**
+ * Print-ready PDF417 raster for `safeMode`, via the same buildPdf417()
+ * the preview uses. Padded (never cropped/scaled — that could break the
+ * symbol) to a multiple of 8, width capped at `maxWidthPx` (fails instead
+ * of cropping if padding would exceed it); height is unbounded.
+ */
+export function buildPdf417RasterImage(element: Pdf417ElementLike, maxWidthPx: number): { image: Pdf417RasterImage } | { error: string } {
+  const moduleScale = element.width ?? DEFAULT_MODULE_WIDTH
+  const columns = resolvePdf417Columns(element, maxWidthPx)
+  const result = buildPdf417(element.value, moduleScale, {
+    columns,
+    rows: element.rows,
+    errorlevel: element.errorlevel,
+    truncated: element.truncated,
+  })
+  if ('error' in result) return result
+
+  const { drawing } = result
+  const width = roundUpToMultipleOf8(drawing.widthPx)
+  const height = roundUpToMultipleOf8(drawing.heightPx)
+  if (width > maxWidthPx) {
+    return { error: `PDF417 raster is ${width}px wide after padding, exceeding the ${maxWidthPx}px paper content width.` }
+  }
+
+  try {
+    return { image: { canvas: renderOntoWhiteCanvas(drawing, width, height), width, height } }
+  } catch (error) {
+    return { error: errorMessage(error) }
   }
 }

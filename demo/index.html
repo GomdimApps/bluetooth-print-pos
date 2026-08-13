@@ -81,6 +81,12 @@
             <option value="justify">Justify</option>
           </select>
         </div>
+        <div class="flex-1">
+          <label for="feedBeforeCutInput" class="block mb-1 text-sm font-semibold">Feed before cut</label>
+          <input type="number" id="feedBeforeCutInput" min="0" placeholder="Default (4)"
+            title="Blank lines fed before the physical cut, so the cutter doesn't slice through the last printed content"
+            class="w-full bg-gray-50 dark:bg-neutral-950 border border-gray-200 dark:border-neutral-800 rounded-lg px-2.5 py-2 text-sm" />
+        </div>
       </div>
 
       <label for="textInput" class="block mt-3 mb-1 text-sm font-semibold">Text</label>
@@ -112,6 +118,7 @@
         <input type="text" id="pdf417Input" placeholder="e.g. a boarding pass payload"
           class="w-full bg-gray-50 dark:bg-neutral-950 border border-gray-200 dark:border-neutral-800 rounded-lg px-2.5 py-2 text-sm" />
         <label class="flex items-center gap-2 mt-2 text-sm font-medium"><input type="checkbox" id="pdf417TruncatedCheck" /> Truncated</label>
+        <label class="flex items-center gap-2 mt-1 text-sm font-medium"><input type="checkbox" id="pdf417SafeModeCheck" /> Safe mode (raster image — for printers without native PDF417 support)</label>
       </details>
 
       <div class="flex flex-wrap gap-2 items-center mt-4">
