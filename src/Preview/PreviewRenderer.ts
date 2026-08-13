@@ -5,7 +5,7 @@ import { justifyLine } from '../Text/justify'
 import { prepareDitheredImage, type DitheredImage } from './imageDither'
 import { buildCode128 } from './content/code128'
 import { buildItf } from './content/itf'
-import { buildQrCode, type QrCodeDrawing } from './core/qrcode'
+import { buildQrCode, QRCODE_DEFAULT_CELL_PX, type QrCodeDrawing } from './core/qrcode'
 import { buildPdf417, resolvePdf417Columns } from './content/pdf417'
 import type { BarcodeDrawing, BarcodeBuildResult } from './core/barcodeDrawing'
 import type { Alignment, PrintJob, PrintJobElement, WebEscposPrinterConfig, PrintPreview } from '../types'
@@ -16,7 +16,6 @@ const LINE_HEIGHT_RATIO = 1.35
 const CUT_HEIGHT_PX = 32
 const BARCODE_DEFAULT_MODULE_PX = 2
 const BARCODE_DEFAULT_HEIGHT_PX = 64
-const QRCODE_DEFAULT_CELL_PX = 6 // matches ReceiptPrinterEncoder.qrcode()'s own default `size`
 const PDF417_DEFAULT_SCALE = 3
 const PDF417_DEFAULT_HEIGHT_PX = 64 // only used for the placeholder shown when bwip-js rejects the value (e.g. empty)
 const TOO_WIDE_LABEL_HEIGHT_PX = 16
@@ -64,7 +63,7 @@ export async function renderPreviewCanvas(job: PrintJob, defaults: WebEscposPrin
         break
 
       case 'rule':
-        drawables.push(ruleDrawable())
+        drawables.push(buildRuleDrawable(element, columns, baseFontSizePx, lineHeightPx))
         break
 
       case 'image': {
@@ -196,12 +195,24 @@ function buildBarcodeDrawable(element: PrintJobElement & { type: 'barcode' }, co
     : placeholderDrawable(symbology, element.value, result.error, heightPx, element.align ?? 'center')
 }
 
+/**
+ * Doesn't read `element.safeMode` — the preview always renders a real
+ * QR raster either way, same as buildPdf417Drawable() below; safeMode only
+ * changes how ReceiptBuilder.ts sends bytes for real print.
+ */
 function buildQrDrawable(element: PrintJobElement & { type: 'qrcode' }): Drawable {
   const cellSizePx = element.size ?? QRCODE_DEFAULT_CELL_PX
   return qrDrawable(buildQrCode(element.value, cellSizePx), element.align ?? 'center')
 }
 
-/** Reuses realBarcodeDrawable()'s "too wide for paper" handling — PDF417 can overflow the paper just like a 1D barcode. */
+/**
+ * Reuses realBarcodeDrawable()'s "too wide for paper" handling — PDF417 can
+ * overflow the paper just like a 1D barcode. Doesn't read `element.safeMode`
+ * — the preview always renders a real bwip-js raster either way, so
+ * safeMode (which only changes how ReceiptBuilder.ts sends bytes for real
+ * print: native .pdf417() vs. a raster image) doesn't change what preview
+ * shows.
+ */
 function buildPdf417Drawable(element: PrintJobElement & { type: 'pdf417' }, contentWidthPx: number): Drawable {
   const moduleScale = element.width ?? PDF417_DEFAULT_SCALE
   // Paper-width-preferred columns when unset, matching ReceiptBuilder.ts — AGENTS.md gotchas #4/#20/#21.
@@ -246,6 +257,22 @@ function textDrawable(
 
 function spaceDrawable(heightPx: number): Drawable {
   return { heightPx, draw() {} }
+}
+
+/**
+ * `safeMode` prints a plain ASCII `-` line instead of the encoder's native
+ * rule character — mirrors that here via textDrawable() (already used for
+ * text elements) instead of the solid filled line, so preview stays
+ * accurate to what safeMode actually prints.
+ */
+function buildRuleDrawable(
+  element: PrintJobElement & { type: 'rule' },
+  columns: number,
+  fontSizePx: number,
+  lineHeightPx: number,
+): Drawable {
+  if (element.safeMode) return textDrawable(['-'.repeat(columns)], 'left', false, false, fontSizePx, lineHeightPx)
+  return ruleDrawable()
 }
 
 function ruleDrawable(): Drawable {

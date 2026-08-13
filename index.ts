@@ -12,6 +12,7 @@
  */
 export { WebEscposPrinter as default } from './src/Printer/WebEscposPrinter'
 export type { ConnectOptions } from './src/Printer/WebEscposPrinter'
+export type { BluetoothPrinterProfile } from './src/interfaces/bluetooth/profiles'
 export type {
   WebEscposPrinterConfig,
   WebEscposPrinterConfigInput,

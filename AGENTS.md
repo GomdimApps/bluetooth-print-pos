@@ -35,7 +35,7 @@ src/interfaces/
   printerErrors.ts              # shared PrinterError normalization
 
   bluetooth/
-    profiles.ts                 # BLUETOOTH_PROFILES table + findProfile()
+    profiles.ts                 # BLUETOOTH_PROFILES table + findProfile() — connect({ profile }) bypasses both
     writeChunked.ts             # chunked BLE characteristic writes
     DefaultBluetoothTransport.ts   # default transport — requestDevice({ filters }) restricted to known profiles
     CompatBluetoothTransport.ts    # fallback transport — acceptAllDevices + post-connect profile matching
@@ -46,6 +46,7 @@ src/interfaces/
 src/Printer/
   WebEscposPrinter.ts           # public API class — connect/disconnect/printReceipt/printRaw/renderPreview
   ReceiptBuilder.ts             # PrintJob -> ESC/POS bytes via @point-of-sale/receipt-printer-encoder
+  Utils/safemode.ts             # safeMode() — shared raster-image fallback for pdf417/etc. safeMode elements
 
 src/Text/                       # sample.ts (orchestrator), wrap.ts, justify.ts, sendLine.ts
 src/Images/image.ts             # loadImageFromSource/prepareImageForEncoder/applyImageElement (real print path)
@@ -68,13 +69,18 @@ time. Full report linked where one exists under `docs/notes/`.
 
 1. **`.barcode()`/`.qrcode()`/`.pdf417()`/`.image()` emit ESC/POS bytes
    only — the printer firmware draws the symbol.** Preview rendering
-   (`Preview/`) is therefore independent of the real encoder, with one
-   exception: `ReceiptBuilder.ts`'s `pdf417` case imports
-   `resolvePdf417Columns()` from `Preview/content/pdf417.ts` to pick a
+   (`Preview/`) is therefore independent of the real encoder, with three
+   exceptions, all in `ReceiptBuilder.ts`: `resolvePdf417Columns()`
+   (`pdf417` case, from `Preview/content/pdf417.ts`) always picks a
    `columns` value both sides agree on — without it, firmware and bwip-js
    pick different (both scannable) grid shapes for the same data
-   (confirmed on real hardware). See gotchas #5/#6 below for why that
-   function has to do a capacity check first.
+   (confirmed on real hardware); and, only when `element.safeMode` is
+   true, `buildPdf417RasterImage()` (`pdf417` case) / `buildQrCodeRasterImage()`
+   (`qrcode` case, from `Preview/core/qrcode.ts`) render the symbol with
+   the same bwip-js/qrcode-generator code the preview uses and send it via
+   `encoder.image()` instead of `encoder.pdf417()`/`encoder.qrcode()`
+   (gotcha #9). See gotchas #5/#6 below for why `resolvePdf417Columns()`
+   needs a capacity check first.
 
 2. **`paperWidth` must scale both `columns` and `imageMaxWidth`** — the
    latter also caps image resizing, preview canvas width, and the barcode
@@ -109,6 +115,25 @@ time. Full report linked where one exists under `docs/notes/`.
    Reproduced on a real Epson TM-T20X-II.
    → [docs/notes/08-qz-windows-raw-driver-routing.md](docs/notes/08-qz-windows-raw-driver-routing.md)
 
+9. **`safeMode: true` prints an element using a fallback rendering instead
+   of its native ESC/POS command/character, for printers that mishandle
+   the native one — the fallback depends on the element type.** Confirmed
+   case: cheap/clone Bluetooth printers that don't implement the native
+   PDF417 command (`GS ( k`) at all, silently dropping it, while an Epson
+   TM-T20X-II prints the same bytes fine — `pdf417`'s `safeMode: true`
+   renders it as a raster image instead. `qrcode`'s `safeMode: true` uses
+   the same raster mechanism (no confirmed hardware case yet — added
+   proactively to match the pattern, unlike pdf417/rule which came from
+   real bug reports).
+   → [docs/notes/09-clone-printers-lack-native-pdf417.md](docs/notes/09-clone-printers-lack-native-pdf417.md)
+
+10. **`encoder.rule()` sends a cp437 box-drawing character (`─`/`═`) —
+    some clone printers' font tables don't match it, printing garbage
+    (confirmed: `^^^^^^^^^`) instead of a line.** `rule` elements can set
+    `safeMode: true` to print a plain ASCII `-` line instead (same width,
+    always safe — ASCII 0x20-0x7E is identical across every codepage).
+    → [docs/notes/10-clone-printers-mangle-rule-character.md](docs/notes/10-clone-printers-mangle-rule-character.md)
+
 ## Coding conventions in this repo
 
 - **Extract data/error-handling into their own files** once a file mixes
@@ -141,6 +166,21 @@ time. Full report linked where one exists under `docs/notes/`.
 - Justify/alignment padding only reaches the printer via the
   padding-preserving `raw()` path for pure-ASCII (32-126) lines; non-ASCII
   falls back to unpadded `encoder.text()`.
+
+## Bluetooth profile matching
+
+A connected device's profile (service/characteristic UUIDs, language,
+codepageMapping, write pacing) is resolved one of two ways, both through
+`openConnection()` (`DefaultBluetoothTransport.ts`, shared by both
+transports): normally via `findProfile()` matching the device's
+name/advertised services against `profiles.ts`'s `BLUETOOTH_PROFILES`
+table; or, when the caller passes `connect({ profile })`
+(`WebEscposPrinter.ts`'s `ConnectOptions.profile`), that exact
+`BluetoothPrinterProfile` is used directly and the table lookup is
+skipped entirely — the escape hatch for printers not in the table, no
+fork/rebuild needed. Not a "gotcha" (no hardware bug behind it, this is
+an intentional API) — see the README's "Manual Bluetooth profile"
+section for consumer-facing docs.
 
 ## Docker demo
 

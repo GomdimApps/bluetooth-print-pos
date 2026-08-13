@@ -103,7 +103,15 @@ export type PrintJobElement =
       size?: number | [number, number]
     }
   | { type: 'newline'; lines?: number }
-  | { type: 'rule' }
+  | {
+      type: 'rule'
+      /**
+       * Prints a plain ASCII `-` line instead of the encoder's native rule
+       * character (a cp437 box-drawing glyph some clone printers' font
+       * tables don't match, printing garbage instead). Default false.
+       */
+      safeMode?: boolean
+    }
   | {
       type: 'image'
       source: ImageSource
@@ -122,7 +130,18 @@ export type PrintJobElement =
       width?: number
       align?: Alignment
     }
-  | { type: 'qrcode'; value: string; align?: Alignment; size?: number }
+  | {
+      type: 'qrcode'
+      value: string
+      align?: Alignment
+      size?: number
+      /**
+       * Prints this element as a raster image instead of its native ESC/POS
+       * command — see `safeMode` on the `pdf417` variant above for the
+       * general explanation. Default false.
+       */
+      safeMode?: boolean
+    }
   | {
       type: 'pdf417'
       value: string
@@ -139,6 +158,16 @@ export type PrintJobElement =
       errorlevel?: number
       /** Truncated PDF417 (fewer bars per row, no right row-indicator/stop pattern) instead of standard. Default false. */
       truncated?: boolean
+      /**
+       * Prints this element as a raster image (the same renderer
+       * renderPreview() uses) instead of its native ESC/POS command — a
+       * general compatibility fallback for printers that don't support
+       * that command. Default false. `pdf417` has it today (some
+       * cheap/clone printers don't implement the PDF417 command at all);
+       * other element types (e.g. `text`, for printers with unreliable
+       * font/codepage support) may gain the same flag later.
+       */
+      safeMode?: boolean
     }
 
 export interface PrintJob {

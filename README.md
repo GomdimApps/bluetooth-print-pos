@@ -113,6 +113,30 @@ class WebEscposPrinter {
 as a rejected Promise with a `.code`:
 `unsupported | user-gesture-required | connect-cancelled | connect-failed | not-connected | busy | print-failed`.
 
+## Safe mode (compatibility fallback)
+
+Some elements support `safeMode: true`: instead of sending the printer's
+native ESC/POS command, the element is rendered using a safer fallback —
+for printers whose firmware doesn't support the native one. A general
+per-element pattern: `pdf417` (raster image), `qrcode` (raster image) and
+`rule` (plain ASCII `-` line) have it today; other elements (e.g. `text`,
+for printers with unreliable font/codepage support) may gain it later:
+
+```ts
+{ type: 'pdf417', value: '...', safeMode: true }
+{ type: 'qrcode', value: '...', safeMode: true }
+{ type: 'rule', safeMode: true }
+```
+
+Off by default — the native command/character is smaller (or, for `rule`,
+just looks different — solid vs. dashed) and works fine on printers that
+already support it. Confirmed cases: some clone Bluetooth printers
+silently drop native PDF417
+([docs/notes/09-clone-printers-lack-native-pdf417.md](docs/notes/09-clone-printers-lack-native-pdf417.md))
+and mangle the native rule character into garbage
+([docs/notes/10-clone-printers-mangle-rule-character.md](docs/notes/10-clone-printers-mangle-rule-character.md))
+— both while an Epson prints the same bytes fine.
+
 ## Connecting
 
 Default `connect()` restricts the Bluetooth device picker to recognized
@@ -129,6 +153,49 @@ connecting (reaches more hardware, noisier picker):
 ```ts
 await printer.connect({ compat: true })
 ```
+
+### Manual Bluetooth profile
+
+If your printer isn't in this library's built-in profile table at all
+(or matches the wrong one), you don't need to fork/rebuild — pass your
+own profile directly, skipping the built-in table entirely:
+
+```ts
+import type { BluetoothPrinterProfile } from 'web-escpos-printer'
+
+const myProfile: BluetoothPrinterProfile = {
+  filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }],
+  service: '000018f0-0000-1000-8000-00805f9b34fb',
+  characteristic: '00002af1-0000-1000-8000-00805f9b34fb',
+  language: 'esc-pos',
+  codepageMapping: 'default',
+}
+
+await printer.connect({ profile: myProfile })
+// also works combined with compat mode:
+await printer.connect({ profile: myProfile, compat: true })
+```
+
+Field meanings:
+
+- `filters` — Web Bluetooth device-picker filters (same shape as
+  `requestDevice({ filters })`), OR'd together. Restricts the picker in
+  default mode; ignored (picker shows everything) in `compat: true` mode.
+- `service` / `characteristic` — the GATT service and characteristic
+  UUIDs to write ESC/POS bytes to. Find these with a BLE scanner app (e.g.
+  nRF Connect, LightBlue) against the target printer. If in doubt about
+  what you're looking at, cross-check against the
+  [Bluetooth GATT services specification](https://www.bluetooth.com/specifications/gatt/services)
+  — most clone printers use a vendor-specific (non-standard) service, but
+  a scanner may also show standard GATT services you should ignore.
+- `language` — `'esc-pos' | 'star-prnt' | 'star-line'`.
+- `codepageMapping` — forwarded as-is to `ReceiptPrinterEncoder`; use
+  `'default'` if unsure.
+- `messageSize` / `sleepAfterCommand` — optional BLE write pacing (max
+  bytes per chunk, delay between chunks) for printers that drop data
+  under the default pacing. See
+  [docs/notes/03-not-every-characteristic-supports-write-with-response.md](docs/notes/03-not-every-characteristic-supports-write-with-response.md)
+  for background on why some printers need this at all.
 
 For USB or other OS-registered printers, connect through
 [QZ Tray](https://qz.io) instead (install the desktop app, pair your
