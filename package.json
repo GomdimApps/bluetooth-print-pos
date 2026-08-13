@@ -1,6 +1,6 @@
 {
   "name": "web-escpos-printer",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Wrapper de comunicacao com impressoras termicas via Web Bluetooth, para uso direto num <script> tag no navegador (sem Node em runtime) ou importado num bundler (Vite/webpack) como o de um projeto Vue.",
   "main": "build/web-escpos-printer.js",
   "module": "build/web-escpos-printer.esm.js",
